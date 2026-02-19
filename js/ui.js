@@ -161,6 +161,11 @@ function rebuildSnakeColorRows() {
                     sn.personality = pKey;
                     sn._behaviorState = null;
                     sn._behaviorTarget = null;
+                    sn._behaviorVisualState = null;
+                    sn._behaviorVisualUntilMs = 0;
+                    sn.greedyStealActive = false;
+                    sn.greedyStealTargetSnakeId = null;
+                    clearTaggedThought(sn, 'behavior');
                     personalityTag.textContent = pm.emoji + ' ' + pm.label;
                     dropdown.remove();
                 });

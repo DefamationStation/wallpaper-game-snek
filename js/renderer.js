@@ -74,24 +74,27 @@ function drawThoughts(sn, nowMs) {
     const headX = headPrev.x + (headCur.x - headPrev.x) * interp;
     const headY = headPrev.y + (headCur.y - headPrev.y) * interp;
 
-    const active = [];
-    for (const t of sn.thoughts) {
+    let write = 0;
+    let behaviorIdx = -1;
+    for (let read = 0; read < sn.thoughts.length; read++) {
+        const t = sn.thoughts[read];
         const age = nowMs - t.born;
         if (age >= t.lifetime) continue; // expired â€” drop it
-        active.push(t);
+        sn.thoughts[write] = t;
+        if (behaviorIdx === -1 && t.tag === 'behavior') behaviorIdx = write;
+        write++;
     }
-    sn.thoughts = active;
-    if (!active.length) return;
+    sn.thoughts.length = write;
+    if (!write) return;
 
-    // Keep behavior bubble anchored nearest the head to avoid apparent flicker
-    // when other thoughts appear/expire.
-    const behavior = active.find(t => t.tag === 'behavior');
-    const drawList = behavior
-        ? [behavior, ...active.filter(t => t !== behavior)]
-        : active;
-
-    for (let stackIndex = 0; stackIndex < drawList.length; stackIndex++) {
-        const t = drawList[stackIndex];
+    // Keep behavior bubble anchored nearest the head to avoid apparent flicker.
+    for (let stackIndex = 0; stackIndex < write; stackIndex++) {
+        let idx = stackIndex;
+        if (behaviorIdx !== -1) {
+            if (stackIndex === 0) idx = behaviorIdx;
+            else if (stackIndex <= behaviorIdx) idx = stackIndex - 1;
+        }
+        const t = sn.thoughts[idx];
         const age = nowMs - t.born;
         const progress = age / t.lifetime;
         const fadeStart = 0.75;
@@ -127,7 +130,7 @@ function drawThoughts(sn, nowMs) {
         ctx.translate(-cx, -(by + bubbleH / 2));
 
         const bubbleTint = t.tint || 'rgba(255,255,255,0.92)';
-        ctx.shadowColor = t.tint ? t.tint.replace(/[\d.]+\)$/, '0.3)') : 'rgba(0,0,0,0.18)';
+        ctx.shadowColor = t.shadowTint || 'rgba(0,0,0,0.18)';
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 2;
 
@@ -155,6 +158,75 @@ function drawThoughts(sn, nowMs) {
 
         ctx.restore();
     }
+}
+
+// Cached Conway wall tiles (pre-rasterized rounded cells) to avoid
+// rebuilding vector paths for every wall cell every frame.
+const wallTileCache = {
+    wallHex: '',
+    cellSize: 0,
+    base: null,
+    bright: null,
+};
+
+function makeScratchCanvas(w, h) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+}
+
+function getWallTiles(wallHex) {
+    if (wallTileCache.base &&
+        wallTileCache.bright &&
+        wallTileCache.wallHex === wallHex &&
+        wallTileCache.cellSize === CELL_SIZE) {
+        return wallTileCache;
+    }
+
+    const cell = CELL_SIZE;
+    const inner = cell - 2;
+    const rr = 3;
+
+    const base = makeScratchCanvas(cell, cell);
+    const bright = makeScratchCanvas(cell, cell);
+    const bctx = base.getContext('2d');
+    const hctx = bright.getContext('2d');
+
+    bctx.clearRect(0, 0, cell, cell);
+    hctx.clearRect(0, 0, cell, cell);
+    bctx.fillStyle = wallHex;
+    hctx.fillStyle = wallHex;
+
+    // Draw the rounded body shape once into both variants.
+    const drawBody = (targetCtx) => {
+        const rx = 1, ry = 1, rw = inner, rh = inner;
+        targetCtx.beginPath();
+        targetCtx.moveTo(rx + rr, ry);
+        targetCtx.lineTo(rx + rw - rr, ry);
+        targetCtx.arcTo(rx + rw, ry, rx + rw, ry + rr, rr);
+        targetCtx.lineTo(rx + rw, ry + rh - rr);
+        targetCtx.arcTo(rx + rw, ry + rh, rx + rw - rr, ry + rh, rr);
+        targetCtx.lineTo(rx + rr, ry + rh);
+        targetCtx.arcTo(rx, ry + rh, rx, ry + rh - rr, rr);
+        targetCtx.lineTo(rx, ry + rr);
+        targetCtx.arcTo(rx, ry, rx + rr, ry, rr);
+        targetCtx.closePath();
+        targetCtx.fill();
+    };
+    drawBody(bctx);
+    drawBody(hctx);
+
+    // Bright variant bakes the top highlight so runtime only chooses a tile.
+    hctx.fillStyle = 'rgba(255,255,255,0.106667)'; // 0.08 / 0.75
+    hctx.fillRect(2, 2, cell - 8, 3);
+
+    wallTileCache.wallHex = wallHex;
+    wallTileCache.cellSize = CELL_SIZE;
+    wallTileCache.base = base;
+    wallTileCache.bright = bright;
+    return wallTileCache;
 }
 
 function drawOverlay() {
@@ -202,9 +274,7 @@ function drawConwayWalls() {
 
     const isNight = state.theme === 'night';
     const wallHex = isNight ? state.colors.wallNight : state.colors.wall;
-    const wallR = parseInt(wallHex.slice(1, 3), 16);
-    const wallG = parseInt(wallHex.slice(3, 5), 16);
-    const wallB = parseInt(wallHex.slice(5, 7), 16);
+    const tiles = getWallTiles(wallHex);
 
     // If stable (crossfade done) and cache valid, just blit.
     if (cw.fadeProgress >= 1.0 && !wallCache.dirty && wallCache.theme === state.theme) {
@@ -228,34 +298,20 @@ function drawConwayWalls() {
         target.shadowBlur = 4;
     }
 
+    const prevAlpha = target.globalAlpha;
     const cols = state.cols, rows = state.rows;
+    const cell = CELL_SIZE;
     for (let y = 0; y < rows; y++) {
+        const rowBase = y * cols;
         for (let x = 0; x < cols; x++) {
-            const a = cw.wallAlpha[y * cols + x];
+            const a = cw.wallAlpha[rowBase + x];
             if (a < 0.01) continue;
-            const px = x * CELL_SIZE, py = y * CELL_SIZE;
-            target.fillStyle = 'rgba(' + wallR + ',' + wallG + ',' + wallB + ',' + (a * 0.75) + ')';
-            // Inline rounded rect for performance (avoids function call overhead per cell).
-            const rx = px + 1, ry = py + 1, rw = CELL_SIZE - 2, rh = CELL_SIZE - 2, rr = 3;
-            target.beginPath();
-            target.moveTo(rx + rr, ry);
-            target.lineTo(rx + rw - rr, ry);
-            target.arcTo(rx + rw, ry, rx + rw, ry + rr, rr);
-            target.lineTo(rx + rw, ry + rh - rr);
-            target.arcTo(rx + rw, ry + rh, rx + rw - rr, ry + rh, rr);
-            target.lineTo(rx + rr, ry + rh);
-            target.arcTo(rx, ry + rh, rx, ry + rh - rr, rr);
-            target.lineTo(rx, ry + rr);
-            target.arcTo(rx, ry, rx + rr, ry, rr);
-            target.closePath();
-            target.fill();
-
-            if (a > 0.85) {
-                target.fillStyle = 'rgba(255,255,255,' + (a * 0.08) + ')';
-                target.fillRect(px + 2, py + 2, CELL_SIZE - 8, 3);
-            }
+            const px = x * cell, py = y * cell;
+            target.globalAlpha = a * 0.75;
+            target.drawImage(a > 0.85 ? tiles.bright : tiles.base, px, py);
         }
     }
+    target.globalAlpha = prevAlpha;
 
     if (isNight) target.shadowBlur = 0;
 

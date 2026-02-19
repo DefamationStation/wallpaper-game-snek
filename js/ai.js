@@ -5,6 +5,13 @@
 // ============================================================
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+const _astarCache = {
+    size: 0,
+    gScore: null,
+    fScore: null,
+    parent: null,
+    closed: null,
+};
 const _floodCache = {
     marks: null,
     stack: [],
@@ -57,12 +64,24 @@ function aStar(sx, sy, gx, gy, occupied) {
     const cols = state.cols, rows = state.rows;
     const h = (x, y) => Math.abs(x - gx) + Math.abs(y - gy);
     const goalIdx = gy * cols + gx;
+    const size = cols * rows;
 
     const INF = 0x7fffffff;
-    const gScore = new Int32Array(cols * rows).fill(INF);
-    const fScore = new Int32Array(cols * rows).fill(INF);
-    const parent = new Int32Array(cols * rows).fill(-1);
-    const closed = new Uint8Array(cols * rows);
+    if (_astarCache.size !== size) {
+        _astarCache.size = size;
+        _astarCache.gScore = new Int32Array(size);
+        _astarCache.fScore = new Int32Array(size);
+        _astarCache.parent = new Int32Array(size);
+        _astarCache.closed = new Uint8Array(size);
+    }
+    const gScore = _astarCache.gScore;
+    const fScore = _astarCache.fScore;
+    const parent = _astarCache.parent;
+    const closed = _astarCache.closed;
+    gScore.fill(INF);
+    fScore.fill(INF);
+    parent.fill(-1);
+    closed.fill(0);
 
     const startIdx = sy * cols + sx;
     gScore[startIdx] = 0;
@@ -184,13 +203,23 @@ function computeNextDirection(sn) {
     // Simulate the board after moving to (nx, ny): body present, tail freed.
     const baseSim = buildOccupiedGrid(false, true, sn);
     baseSim[tail.y * cols + tail.x] = 0;
+    const pathCache = new Map();
     function safeSpace(nx, ny, cap) {
         return floodFillCount(nx, ny, baseSim, cap, -1);
     }
 
+    // Cache A* paths by goal cell for this decision pass.
+    function getPathTo(gx, gy) {
+        const key = gy * cols + gx;
+        if (pathCache.has(key)) return pathCache.get(key);
+        const path = aStar(head.x, head.y, gx, gy, occupied);
+        pathCache.set(key, path);
+        return path;
+    }
+
     // Helper: attempt to pathfind to a goal and return a direction if safe.
     function tryPathTo(gx, gy, margin) {
-        const path = aStar(head.x, head.y, gx, gy, occupied);
+        const path = getPathTo(gx, gy);
         if (path && path.length > 1) {
             const next = path[1];
             const need = sn.body.length + margin;
@@ -368,7 +397,7 @@ function computeNextDirection(sn) {
             sn.wanderTarget = picked;
         }
         if (sn.wanderTarget) {
-            const roamPath = aStar(head.x, head.y, sn.wanderTarget.x, sn.wanderTarget.y, occupied);
+            const roamPath = getPathTo(sn.wanderTarget.x, sn.wanderTarget.y);
             if (roamPath && roamPath.length > 1) {
                 const next = roamPath[1];
                 const need = sn.body.length;
@@ -381,7 +410,7 @@ function computeNextDirection(sn) {
 
     // Phase 2: Chase tail to stay mobile — only in normal (non-wander) mode.
     if (!sn.wandering && sn.body.length > 1) {
-        const tailPath = aStar(head.x, head.y, tail.x, tail.y, occupied);
+        const tailPath = getPathTo(tail.x, tail.y);
         if (tailPath && tailPath.length > 1) {
             const next = tailPath[1];
             const need = sn.body.length;

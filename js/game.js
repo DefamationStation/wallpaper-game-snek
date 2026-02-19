@@ -60,6 +60,8 @@ function spawnThought(sn, pool, lifetime, opts) {
     const tag = opts && opts.tag;
     const tint = opts && opts.tint;
     const ttl = lifetime || 2000;
+    const poolSig = pool && pool.length ? pool.join('\u0001') : '';
+    const shadowTint = tint ? tint.replace(/[\d.]+\)$/, '0.3)') : null;
     // If a tag is provided, refresh the existing tagged thought instead of stacking.
     if (tag) {
         for (const t of sn.thoughts) {
@@ -68,9 +70,11 @@ function spawnThought(sn, pool, lifetime, opts) {
                 // Do not hard-reset born every tick (that causes pop-in jitter).
                 t.lifetime = ttl;
                 t.tint = tint || null;
-                if (pool && pool.length && !pool.includes(t.emoji)) {
+                t.shadowTint = shadowTint;
+                if (pool && pool.length && t.poolSig !== poolSig) {
                     t.emoji = pool[Math.floor(Math.random() * pool.length)];
                 }
+                t.poolSig = poolSig;
                 const age = now - t.born;
                 if (age > ttl * 0.8) t.born = now - ttl * 0.8;
                 return;
@@ -82,6 +86,8 @@ function spawnThought(sn, pool, lifetime, opts) {
         born: now,
         lifetime: ttl,
         tint: tint || null,
+        shadowTint: shadowTint,
+        poolSig: poolSig,
         tag: tag || null,
     });
 }
