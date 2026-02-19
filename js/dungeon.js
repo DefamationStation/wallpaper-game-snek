@@ -118,15 +118,29 @@ function conwayBuildGeneration(cols, rows, intensity) {
     return grid;
 }
 
+// Build the next generation asynchronously so regen time does not stall rendering.
+function conwaySchedulePendingGeneration() {
+    const cw = state.conway;
+    if (!cw.enabled) return;
+    if (cw.pendingGen || cw.pendingBuildTimer) return;
+
+    cw.pendingBuildTimer = setTimeout(() => {
+        cw.pendingBuildTimer = 0;
+        if (!cw.enabled) return;
+        cw.pendingGen = conwayBuildGeneration(state.cols, state.rows, cw.intensity);
+    }, 0);
+}
+
 // Initialise Conway dungeon mode.
 // fresh=true: apply the first generation directly (no crossfade).
 // fresh=false: queue a crossfade from the current state to a new generation.
-function conwayInit(fresh) {
+function conwayInit(fresh, prebuiltGen) {
     const { cols, rows } = state;
     const size = cols * rows;
     const cw = state.conway;
 
-    const newGen = conwayBuildGeneration(cols, rows, cw.intensity);
+    const newGen = prebuiltGen || conwayBuildGeneration(cols, rows, cw.intensity);
+    cw.pendingGen = null;
 
     // Invalidate the wall render cache before any crossfade.
     wallCache.dirty = true;
@@ -148,6 +162,7 @@ function conwayInit(fresh) {
     }
 
     cw.nextRegenMs = performance.now() + cw.regenMs;
+    conwaySchedulePendingGeneration();
 }
 
 // Update Conway wall alpha values based on crossfade progress.
@@ -157,7 +172,7 @@ function conwayUpdateFade(nowMs) {
     if (!cw.enabled || !cw.wallAlpha) return;
 
     if (nowMs >= cw.nextRegenMs) {
-        conwayInit(false); // triggers a new crossfade
+        conwayInit(false, cw.pendingGen); // triggers a new crossfade; prebuilt when available
     }
 
     if (cw.fadeProgress < 1.0) {
@@ -177,6 +192,9 @@ function conwayUpdateFade(nowMs) {
 // Reset all Conway wall state when the mode is turned off.
 function conwayClear() {
     const cw = state.conway;
+    if (cw.pendingBuildTimer) clearTimeout(cw.pendingBuildTimer);
+    cw.pendingBuildTimer = 0;
+    cw.pendingGen = null;
     cw.wallAlpha = null;
     cw.wallTarget = null;
     cw.wallPrev = null;
