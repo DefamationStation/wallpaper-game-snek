@@ -37,10 +37,11 @@ const state = {
         enabled: false,
         intensity: 5,         // 1â€“10: controls wall density and room size
         regenMs: 120_000,     // user-configurable refresh interval (ms)
-        wallAlpha: null,      // Float32Array [cols*rows]: 0.0 open â†’ 1.0 solid
-        wallTarget: null,     // Uint8Array [cols*rows]: incoming generation
+        wallAlpha: null,      // legacy field (no longer updated per-frame)
+        wallTarget: null,     // Uint8Array [cols*rows]: incoming/current generation
         wallPrev: null,       // Uint8Array [cols*rows]: outgoing generation
         fadeProgress: 1.0,    // 0â†’1 during crossfade, 1 when stable
+        fadeEase: 1.0,        // eased fadeProgress (used for rendering/collision thresholds)
         fadeStartMs: 0,
         nextRegenMs: 0,       // absolute timestamp for next regen
         pendingGen: null,     // prebuilt generation used on next regen

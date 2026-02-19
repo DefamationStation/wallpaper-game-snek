@@ -265,62 +265,113 @@ function drawOverlay() {
     }
 }
 
-// Draw Conway walls with per-cell alpha.
-// When the crossfade is complete the result is cached in an OffscreenCanvas
-// so subsequent frames just blit rather than iterate every cell.
+function drawConwayLayer(layer, alpha) {
+    if (!layer || alpha <= 0.001) return;
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(layer, 0, 0);
+    ctx.globalAlpha = prevAlpha;
+}
+
+function buildConwayFadeLayers(cw, tiles, wallHex) {
+    const shared = makeScratchCanvas(canvas.width, canvas.height);
+    const fadeIn = makeScratchCanvas(canvas.width, canvas.height);
+    const fadeInBright = makeScratchCanvas(canvas.width, canvas.height);
+    const fadeOut = makeScratchCanvas(canvas.width, canvas.height);
+    const fadeOutBright = makeScratchCanvas(canvas.width, canvas.height);
+    const sharedCtx = shared.getContext('2d');
+    const inCtx = fadeIn.getContext('2d');
+    const inBrightCtx = fadeInBright.getContext('2d');
+    const outCtx = fadeOut.getContext('2d');
+    const outBrightCtx = fadeOutBright.getContext('2d');
+
+    const cols = state.cols, rows = state.rows;
+    const prev = cw.wallPrev;
+    const next = cw.wallTarget;
+    const cell = CELL_SIZE;
+
+    for (let y = 0; y < rows; y++) {
+        const rowBase = y * cols;
+        for (let x = 0; x < cols; x++) {
+            const idx = rowBase + x;
+            const from = prev ? prev[idx] : 0;
+            const to = next ? next[idx] : 0;
+            if (!from && !to) continue;
+            const px = x * cell, py = y * cell;
+            if (from && to) {
+                sharedCtx.drawImage(tiles.bright, px, py);
+            } else if (!from && to) {
+                inCtx.drawImage(tiles.base, px, py);
+                inBrightCtx.drawImage(tiles.bright, px, py);
+            } else {
+                outCtx.drawImage(tiles.base, px, py);
+                outBrightCtx.drawImage(tiles.bright, px, py);
+            }
+        }
+    }
+
+    return {
+        shared,
+        fadeIn,
+        fadeInBright,
+        fadeOut,
+        fadeOutBright,
+        cols,
+        rows,
+        cellSize: CELL_SIZE,
+        wallHex,
+        theme: state.theme,
+        wallPrevRef: cw.wallPrev,
+        wallTargetRef: cw.wallTarget,
+    };
+}
+
+// Draw Conway walls using prebuilt layer canvases.
+// This avoids per-cell draw work during each frame of the crossfade.
 function drawConwayWalls() {
     const cw = state.conway;
-    if (!cw.wallAlpha) return;
+    if (!cw.wallTarget) return;
 
     const isNight = state.theme === 'night';
     const wallHex = isNight ? state.colors.wallNight : state.colors.wall;
     const tiles = getWallTiles(wallHex);
 
-    // If stable (crossfade done) and cache valid, just blit.
-    if (cw.fadeProgress >= 1.0 && !wallCache.dirty && wallCache.theme === state.theme) {
-        ctx.drawImage(wallCache.oc, 0, 0);
-        return;
+    const fade = wallCache.fade;
+    const needsRebuild = wallCache.dirty ||
+        !fade ||
+        fade.cols !== state.cols ||
+        fade.rows !== state.rows ||
+        fade.cellSize !== CELL_SIZE ||
+        fade.theme !== state.theme ||
+        fade.wallHex !== wallHex ||
+        fade.wallPrevRef !== cw.wallPrev ||
+        fade.wallTargetRef !== cw.wallTarget;
+    if (needsRebuild) {
+        wallCache.fade = buildConwayFadeLayers(cw, tiles, wallHex);
+        wallCache.theme = state.theme;
+        wallCache.dirty = false;
     }
 
-    // During crossfade draw directly to the main canvas.
-    // When stable, draw to the offscreen canvas and cache it.
-    let target = ctx;
-    if (cw.fadeProgress >= 1.0 && typeof OffscreenCanvas !== 'undefined') {
-        if (!wallCache.oc || wallCache.oc.width !== canvas.width || wallCache.oc.height !== canvas.height) {
-            wallCache.oc = new OffscreenCanvas(canvas.width, canvas.height);
-        }
-        target = wallCache.oc.getContext('2d');
-        target.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    const active = wallCache.fade;
+    const ease = conwayCurrentEase(cw);
+    const transitioning = cw.fadeProgress < 1.0;
+    const fadeOutAlpha = transitioning ? (1 - ease) * 0.75 : 0;
+    const fadeInAlpha = transitioning ? ease * 0.75 : 0.75;
+    const fadeOutLayer = (1 - ease) > 0.85 ? active.fadeOutBright : active.fadeOut;
+    const fadeInLayer = (!transitioning || ease > 0.85) ? active.fadeInBright : active.fadeIn;
 
     if (isNight) {
-        target.shadowColor = 'rgba(120,100,200,0.4)';
-        target.shadowBlur = 4;
+        ctx.shadowColor = 'rgba(120,100,200,0.4)';
+        ctx.shadowBlur = 4;
     }
 
-    const prevAlpha = target.globalAlpha;
-    const cols = state.cols, rows = state.rows;
-    const cell = CELL_SIZE;
-    for (let y = 0; y < rows; y++) {
-        const rowBase = y * cols;
-        for (let x = 0; x < cols; x++) {
-            const a = cw.wallAlpha[rowBase + x];
-            if (a < 0.01) continue;
-            const px = x * cell, py = y * cell;
-            target.globalAlpha = a * 0.75;
-            target.drawImage(a > 0.85 ? tiles.bright : tiles.base, px, py);
-        }
-    }
-    target.globalAlpha = prevAlpha;
+    drawConwayLayer(active.shared, 0.75);
+    drawConwayLayer(fadeOutLayer, fadeOutAlpha);
+    drawConwayLayer(fadeInLayer, fadeInAlpha);
 
-    if (isNight) target.shadowBlur = 0;
-
-    if (cw.fadeProgress >= 1.0 && wallCache.oc) {
-        wallCache.dirty = false;
-        wallCache.theme = state.theme;
-        ctx.drawImage(wallCache.oc, 0, 0);
-    } else {
-        wallCache.dirty = true;
+    if (isNight) {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
     }
 }
 

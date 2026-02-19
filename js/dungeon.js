@@ -131,6 +131,39 @@ function conwaySchedulePendingGeneration() {
     }, 0);
 }
 
+function conwayEase(t) {
+    const clamped = Math.min(1, Math.max(0, t));
+    return clamped < 0.5
+        ? 2 * clamped * clamped
+        : -1 + (4 - 2 * clamped) * clamped;
+}
+
+// Returns the current eased fade amount [0..1].
+function conwayCurrentEase(cw) {
+    if (!cw) cw = state.conway;
+    if (Number.isFinite(cw.fadeEase)) return cw.fadeEase;
+    return conwayEase(cw.fadeProgress || 0);
+}
+
+// Returns the wall bitmap currently considered "solid" for gameplay.
+// During crossfade, this flips from wallPrev to wallTarget at ease 0.5
+// to preserve previous collision behavior (wallAlpha >= 0.5 threshold).
+function conwayCurrentSolidGrid() {
+    const cw = state.conway;
+    if (!cw.wallTarget) return null;
+    if (cw.fadeProgress < 1.0 && cw.wallPrev) {
+        return conwayCurrentEase(cw) < 0.5 ? cw.wallPrev : cw.wallTarget;
+    }
+    return cw.wallTarget;
+}
+
+function conwayCellIsBlocked(idx, includeTargetWalls) {
+    const cw = state.conway;
+    if (!cw.enabled || !cw.wallTarget) return false;
+    const solid = conwayCurrentSolidGrid();
+    return !!((solid && solid[idx]) || (includeTargetWalls && cw.wallTarget[idx]));
+}
+
 // Initialise Conway dungeon mode.
 // fresh=true: apply the first generation directly (no crossfade).
 // fresh=false: queue a crossfade from the current state to a new generation.
@@ -142,34 +175,34 @@ function conwayInit(fresh, prebuiltGen) {
     const newGen = prebuiltGen || conwayBuildGeneration(cols, rows, cw.intensity);
     cw.pendingGen = null;
 
-    // Invalidate the wall render cache before any crossfade.
+    // Invalidate wall render caches before any crossfade.
     wallCache.dirty = true;
+    wallCache.fade = null;
 
-    if (fresh || !cw.wallAlpha) {
-        cw.wallAlpha = new Float32Array(size);
+    if (fresh || !cw.wallTarget) {
         cw.wallPrev = new Uint8Array(size);
-        cw.wallTarget = newGen;
-        cw.fadeProgress = 0;
-        cw.fadeStartMs = performance.now();
     } else {
-        // Snapshot the current alpha state as the "previous" baseline for crossfade.
+        // Snapshot the current solid view as the outgoing generation.
+        const current = conwayCurrentSolidGrid();
         const snapPrev = new Uint8Array(size);
-        for (let i = 0; i < size; i++) snapPrev[i] = cw.wallAlpha[i] >= 0.5 ? 1 : 0;
+        if (current) snapPrev.set(current);
         cw.wallPrev = snapPrev;
-        cw.wallTarget = newGen;
-        cw.fadeProgress = 0;
-        cw.fadeStartMs = performance.now();
     }
+
+    cw.wallTarget = newGen;
+    cw.fadeProgress = 0;
+    cw.fadeEase = 0;
+    cw.fadeStartMs = performance.now();
 
     cw.nextRegenMs = performance.now() + cw.regenMs;
     conwaySchedulePendingGeneration();
 }
 
-// Update Conway wall alpha values based on crossfade progress.
+// Update Conway crossfade timing.
 // Called every frame from the render loop for smooth animation independent of tick speed.
 function conwayUpdateFade(nowMs) {
     const cw = state.conway;
-    if (!cw.enabled || !cw.wallAlpha) return;
+    if (!cw.enabled || !cw.wallTarget) return;
 
     if (nowMs >= cw.nextRegenMs) {
         conwayInit(false, cw.pendingGen); // triggers a new crossfade; prebuilt when available
@@ -177,16 +210,8 @@ function conwayUpdateFade(nowMs) {
 
     if (cw.fadeProgress < 1.0) {
         cw.fadeProgress = Math.min(1.0, (nowMs - cw.fadeStartMs) / CONWAY_FADE_MS);
-        const t = cw.fadeProgress;
-        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // smooth ease in-out
-
-        const size = state.cols * state.rows;
-        for (let i = 0; i < size; i++) {
-            const fromVal = cw.wallPrev ? cw.wallPrev[i] : 0;
-            const toVal = cw.wallTarget ? cw.wallTarget[i] : 0;
-            cw.wallAlpha[i] = fromVal + (toVal - fromVal) * ease;
-        }
     }
+    cw.fadeEase = conwayEase(cw.fadeProgress);
 }
 
 // Reset all Conway wall state when the mode is turned off.
@@ -199,5 +224,7 @@ function conwayClear() {
     cw.wallTarget = null;
     cw.wallPrev = null;
     cw.fadeProgress = 1.0;
+    cw.fadeEase = 1.0;
     cw.nextRegenMs = 0;
+    wallCache.fade = null;
 }

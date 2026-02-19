@@ -235,20 +235,45 @@ function computeNextDirection(sn) {
     // When another snake's head is near our food, try to block them in
     // or chase them for a direct head-to-body collision.
     // ================================================================
-    if (sn.personality === 'aggressive' && !sn.wandering && state.snakes.length > 1) {
+    if (sn.personality === 'aggressive' && state.snakes.length > 1) {
+        const nowMs = performance.now();
         let target = null;
-        let targetDist = Infinity;
-        for (const other of state.snakes) {
-            if (other.id === sn.id || other.respawning || !other.body.length) continue;
-            if (!sn.food) break;
-            const oh = other.body[0];
-            const dist = Math.abs(oh.x - sn.food.x) + Math.abs(oh.y - sn.food.y);
-            if (dist <= AGGRESSIVE_KILL_RANGE && dist < targetDist) {
-                target = other;
-                targetDist = dist;
+        let forcedRetaliation = false;
+
+        // Forced target: set by game.js when a greedy snake steals this snake's food.
+        if (sn.aggressiveRetaliationUntilMs > nowMs &&
+            Number.isInteger(sn.aggressiveRetaliationTargetSnakeId)) {
+            target = state.snakes.find(other =>
+                other.id === sn.aggressiveRetaliationTargetSnakeId &&
+                !other.respawning &&
+                other.body.length
+            ) || null;
+            forcedRetaliation = !!target;
+            if (!target) {
+                sn.aggressiveRetaliationTargetSnakeId = null;
+                sn.aggressiveRetaliationUntilMs = 0;
+            }
+        } else if (sn.aggressiveRetaliationUntilMs) {
+            sn.aggressiveRetaliationTargetSnakeId = null;
+            sn.aggressiveRetaliationUntilMs = 0;
+        }
+
+        // Normal kill trigger: another snake's head is near our food.
+        if (!target && !sn.wandering) {
+            let targetDist = Infinity;
+            for (const other of state.snakes) {
+                if (other.id === sn.id || other.respawning || !other.body.length) continue;
+                if (!sn.food) break;
+                const oh = other.body[0];
+                const dist = Math.abs(oh.x - sn.food.x) + Math.abs(oh.y - sn.food.y);
+                if (dist <= AGGRESSIVE_KILL_RANGE && dist < targetDist) {
+                    target = other;
+                    targetDist = dist;
+                }
             }
         }
-        if (target && Math.random() < AGGRESSIVE_KILL_CHANCE) {
+
+        if (target && (forcedRetaliation || Math.random() < AGGRESSIVE_KILL_CHANCE)) {
             sn._behaviorState = 'killing';
             sn._behaviorTarget = target.id;
             // Mark the victim as feared.
@@ -279,7 +304,7 @@ function computeNextDirection(sn) {
             // Strategy 2: Direct chase — pathfind toward the target's head.
             // If close enough, try to collide with their body.
             const headDist = Math.abs(head.x - th.x) + Math.abs(head.y - th.y);
-            if (headDist <= AGGRESSIVE_KILL_RANGE + 2) {
+            if (forcedRetaliation || headDist <= AGGRESSIVE_KILL_RANGE + 2) {
                 const dir = tryPathTo(th.x, th.y, safetyMargin);
                 if (dir) return dir;
             }

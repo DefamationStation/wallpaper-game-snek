@@ -147,6 +147,8 @@ function makeSnake(id, body, colorHead, displayName) {
         _behaviorVisualUntilMs: 0,
         greedyStealActive: false,
         greedyStealTargetSnakeId: null,
+        aggressiveRetaliationTargetSnakeId: null,
+        aggressiveRetaliationUntilMs: 0,
         // satiety
         satiety: 0,
         wandering: false,
@@ -230,10 +232,9 @@ function gameTickForSnake(sn) {
     }
 
     // If a wall has faded in (or is fading in) over the food cell, relocate it.
-    if (sn.food && state.conway.enabled && state.conway.wallAlpha) {
+    if (sn.food && state.conway.enabled && state.conway.wallTarget) {
         const fi = sn.food.y * state.cols + sn.food.x;
-        const blocked = state.conway.wallAlpha[fi] >= 0.5 ||
-            (state.conway.wallTarget && state.conway.wallTarget[fi]);
+        const blocked = conwayCellIsBlocked(fi, true);
         if (blocked) placeFood(sn);
     }
 
@@ -331,6 +332,13 @@ function gameTickForSnake(sn) {
         } else if (newHead.x === target.food.x && newHead.y === target.food.y) {
             sn.body.push({ ...sn.body[sn.body.length - 1] });
             spawnThought(sn, ['😋', '🍽️']);
+            if (target.personality === 'aggressive') {
+                target.aggressiveRetaliationTargetSnakeId = sn.id;
+                target.aggressiveRetaliationUntilMs = now + AGGRESSIVE_RETALIATE_DURATION_MS;
+                // Retaliation overrides passive roam behavior immediately.
+                target.wandering = false;
+                target.wanderTarget = null;
+            }
             placeFood(target);
             sn.greedyStealActive = false;
             sn.greedyStealTargetSnakeId = null;
@@ -451,6 +459,8 @@ function handleSnakeDeath(sn) {
     sn.lastMoveMs = now;
     sn.greedyStealActive = false;
     sn.greedyStealTargetSnakeId = null;
+    sn.aggressiveRetaliationTargetSnakeId = null;
+    sn.aggressiveRetaliationUntilMs = 0;
 }
 
 // ---- Respawn ----
@@ -485,6 +495,8 @@ function respawnSnake(sn, ts) {
     sn._behaviorVisualUntilMs = 0;
     sn.greedyStealActive = false;
     sn.greedyStealTargetSnakeId = null;
+    sn.aggressiveRetaliationTargetSnakeId = null;
+    sn.aggressiveRetaliationUntilMs = 0;
     sn.lastTickMs = ts;
     sn.lastMoveMs = ts;
     sn.lastGrossThoughtMs = 0;

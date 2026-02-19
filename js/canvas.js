@@ -8,7 +8,7 @@ const ctx = canvas.getContext('2d');
 
 // Offscreen canvas cache for stable (fully-faded) Conway wall renders.
 // Invalidated on crossfade start, theme change, or window resize.
-const wallCache = { oc: null, dirty: true, theme: null };
+const wallCache = { oc: null, dirty: true, theme: null, fade: null };
 
 function resizeCanvas() {
     // Match current viewport and keep content above taskbar inset.
@@ -24,7 +24,8 @@ function resizeCanvas() {
     canvas.style.height = canvas.height + 'px';
     state.cols = Math.max(1, Math.floor(canvas.width / CELL_SIZE));
     state.rows = Math.max(1, Math.floor(canvas.height / CELL_SIZE));
-    wallCache.dirty = true; // size changed — offscreen canvas must be recreated
+    wallCache.dirty = true;
+    wallCache.fade = null;
 }
 
 // initGame is defined later in game.js; the event fires well after all scripts load.
@@ -32,3 +33,4 @@ window.addEventListener('resize', () => {
     resizeCanvas();
     initGame();
 });
+

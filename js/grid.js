@@ -31,14 +31,15 @@ function buildOccupiedGrid(excludeHead, includeTargetWalls, callerSn) {
         }
     }
 
-    // Conway walls: treat a cell as solid if its alpha is >= 0.5 (visually a wall).
+    // Conway walls: use the current solid generation (switches at fade midpoint).
     // Optionally include incoming target walls for AI/path safety.
-    if (state.conway.enabled && state.conway.wallAlpha) {
-        const wa = state.conway.wallAlpha;
-        const wt = state.conway.wallTarget;
+    if (state.conway.enabled && state.conway.wallTarget) {
+        const cw = state.conway;
+        const wt = cw.wallTarget;
+        const solid = conwayCurrentSolidGrid();
         const size = cols * rows;
         for (let i = 0; i < size; i++) {
-            if (wa[i] >= 0.5 || (includeTargetWalls && wt && wt[i])) grid[i] = 1;
+            if ((solid && solid[i]) || (includeTargetWalls && wt[i])) grid[i] = 1;
         }
     }
 
