@@ -5,6 +5,11 @@
 // ============================================================
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+const _floodCache = {
+    marks: null,
+    stack: [],
+    stamp: 1,
+};
 
 // ---- Min-Heap (priority queue) ----
 class MinHeap {
@@ -72,13 +77,14 @@ function aStar(sx, sy, gx, gy, occupied) {
         closed[cur] = 1;
 
         if (cur === goalIdx) {
-            const path = [];
+            const pathRev = [];
             let node = cur;
             while (node !== -1) {
-                path.unshift({ x: node % cols, y: (node / cols) | 0 });
+                pathRev.push({ x: node % cols, y: (node / cols) | 0 });
                 node = parent[node];
             }
-            return path;
+            pathRev.reverse();
+            return pathRev;
         }
 
         const cx = cur % cols, cy = (cur / cols) | 0;
@@ -101,16 +107,34 @@ function aStar(sx, sy, gx, gy, occupied) {
 
 // ---- Flood fill ----
 // Returns the number of open cells reachable from (sx, sy).
-function floodFillCount(sx, sy, occupied, cap) {
+// extraBlockedIdx marks one additional blocked cell without cloning occupied.
+function floodFillCount(sx, sy, occupied, cap, extraBlockedIdx) {
     const cols = state.cols, rows = state.rows;
-    const visited = new Uint8Array(cols * rows);
-    const stack = [sy * cols + sx];
+    const size = cols * rows;
+    if (!_floodCache.marks || _floodCache.marks.length !== size) {
+        _floodCache.marks = new Uint32Array(size);
+        _floodCache.stamp = 1;
+    }
+    _floodCache.stamp++;
+    if (_floodCache.stamp === 0xffffffff) {
+        _floodCache.marks.fill(0);
+        _floodCache.stamp = 1;
+    }
+
+    const stamp = _floodCache.stamp;
+    const marks = _floodCache.marks;
+    const blockedIdx = Number.isInteger(extraBlockedIdx) ? extraBlockedIdx : -1;
+    const stack = _floodCache.stack;
+    stack.length = 0;
+    stack.push(sy * cols + sx);
+
     let count = 0;
     while (stack.length) {
         const idx = stack.pop();
-        if (idx < 0 || idx >= cols * rows) continue;
-        if (visited[idx] || occupied[idx]) continue;
-        visited[idx] = 1;
+        if (idx < 0 || idx >= size) continue;
+        if (idx === blockedIdx || occupied[idx]) continue;
+        if (marks[idx] === stamp) continue;
+        marks[idx] = stamp;
         count++;
         if (cap && count >= cap) return count;
         const x = idx % cols, y = (idx / cols) | 0;
@@ -123,16 +147,34 @@ function floodFillCount(sx, sy, occupied, cap) {
 }
 
 // ---- Direction decision ----
-// Three-phase strategy:
-//   1. A* to food — only if the next cell has enough reachable space.
-//   2. Tail-follow — keeps the snake mobile; gated on space check.
-//   3. Max-space fallback — pick the open neighbour with the most reachable cells.
+// Personality-aware multi-phase strategy:
+//   Phase 0: Personality overrides (aggressive kill, cautious evasion, greedy steal)
+//   Phase 1: A* to food — only if the next cell has enough reachable space.
+//   Phase 1b: Wander-mode roaming toward a random target.
+//   Phase 2: Tail-follow — keeps the snake mobile; gated on space check.
+//   Phase 3: Max-space fallback — pick the open neighbour with the most reachable cells.
 // sn: the snake object to compute a direction for.
 // Other snakes' bodies are treated as walls (via callerSn in buildOccupiedGrid).
 function computeNextDirection(sn) {
     const head = sn.body[0];
     const tail = sn.body[sn.body.length - 1];
     const cols = state.cols;
+    const meta = PERSONALITY_META[sn.personality];
+    const safetyMargin = meta ? meta.safetyMargin : 4;
+
+    // Reset self-initiated behavior state each tick — phases below will set it if active.
+    // Preserve 'feared' state set by another snake's aggressive AI (cleared below if no longer valid).
+    if (sn._behaviorState !== 'feared') {
+        sn._behaviorState = null;
+        sn._behaviorTarget = null;
+    } else {
+        // Validate the feared state: clear if the aggressor is gone, dead, or no longer in kill mode.
+        const aggressor = state.snakes.find(s => s.id === sn._behaviorTarget);
+        if (!aggressor || aggressor.respawning || aggressor._behaviorState !== 'killing') {
+            sn._behaviorState = null;
+            sn._behaviorTarget = null;
+        }
+    }
 
     // excludeHead=true for caller; other snakes fully marked as walls.
     const occupied = buildOccupiedGrid(true, true, sn);
@@ -140,24 +182,170 @@ function computeNextDirection(sn) {
     occupied[tail.y * cols + tail.x] = 0;
 
     // Simulate the board after moving to (nx, ny): body present, tail freed.
-    // Other snakes' bodies are included via callerSn=sn.
     const baseSim = buildOccupiedGrid(false, true, sn);
     baseSim[tail.y * cols + tail.x] = 0;
     function safeSpace(nx, ny, cap) {
-        const sim = baseSim.slice();
-        return floodFillCount(nx, ny, sim, cap);
+        return floodFillCount(nx, ny, baseSim, cap, -1);
     }
 
-    // Phase 1: Head toward food — skipped entirely in wander mode.
-    if (sn.food && !sn.wandering) {
-        const foodPath = aStar(head.x, head.y, sn.food.x, sn.food.y, occupied);
-        if (foodPath && foodPath.length > 1) {
-            const next = foodPath[1];
-            const need = sn.body.length + 4;
+    // Helper: attempt to pathfind to a goal and return a direction if safe.
+    function tryPathTo(gx, gy, margin) {
+        const path = aStar(head.x, head.y, gx, gy, occupied);
+        if (path && path.length > 1) {
+            const next = path[1];
+            const need = sn.body.length + margin;
             if (safeSpace(next.x, next.y, need) >= need) {
                 return { x: next.x - head.x, y: next.y - head.y };
             }
         }
+        return null;
+    }
+
+    // ================================================================
+    // Phase 0a: AGGRESSIVE — kill mode
+    // When another snake's head is near our food, try to block them in
+    // or chase them for a direct head-to-body collision.
+    // ================================================================
+    if (sn.personality === 'aggressive' && !sn.wandering && state.snakes.length > 1) {
+        let target = null;
+        let targetDist = Infinity;
+        for (const other of state.snakes) {
+            if (other.id === sn.id || other.respawning || !other.body.length) continue;
+            if (!sn.food) break;
+            const oh = other.body[0];
+            const dist = Math.abs(oh.x - sn.food.x) + Math.abs(oh.y - sn.food.y);
+            if (dist <= AGGRESSIVE_KILL_RANGE && dist < targetDist) {
+                target = other;
+                targetDist = dist;
+            }
+        }
+        if (target && Math.random() < AGGRESSIVE_KILL_CHANCE) {
+            sn._behaviorState = 'killing';
+            sn._behaviorTarget = target.id;
+            // Mark the victim as feared.
+            target._behaviorState = 'feared';
+            target._behaviorTarget = sn.id;
+
+            const th = target.body[0];
+
+            // Strategy 1: Block — find the neighbor of target's head that minimizes
+            // their reachable space.
+            let bestBlockDir = null;
+            let bestBlockScore = Infinity;
+            for (const [dx, dy] of DIRS) {
+                const bx = th.x + dx, by = th.y + dy;
+                if (!inBounds(bx, by) || occupied[by * cols + bx]) continue;
+                const blockIdx = by * cols + bx;
+                const targetSpace = floodFillCount(th.x, th.y, baseSim, 0, blockIdx);
+                if (targetSpace < bestBlockScore) {
+                    bestBlockScore = targetSpace;
+                    bestBlockDir = { bx, by };
+                }
+            }
+            if (bestBlockDir) {
+                const dir = tryPathTo(bestBlockDir.bx, bestBlockDir.by, safetyMargin);
+                if (dir) return dir;
+            }
+
+            // Strategy 2: Direct chase — pathfind toward the target's head.
+            // If close enough, try to collide with their body.
+            const headDist = Math.abs(head.x - th.x) + Math.abs(head.y - th.y);
+            if (headDist <= AGGRESSIVE_KILL_RANGE + 2) {
+                const dir = tryPathTo(th.x, th.y, safetyMargin);
+                if (dir) return dir;
+            }
+        }
+    }
+
+    // ================================================================
+    // Phase 0b: CAUTIOUS — evasion mode
+    // When any other snake's head is too close, flee instead of eating.
+    // ================================================================
+    if (sn.personality === 'cautious' && !sn.wandering && state.snakes.length > 1) {
+        let nearestThreat = null;
+        let nearestDist = Infinity;
+        for (const other of state.snakes) {
+            if (other.id === sn.id || other.respawning || !other.body.length) continue;
+            const oh = other.body[0];
+            const dist = Math.abs(head.x - oh.x) + Math.abs(head.y - oh.y);
+            if (dist <= CAUTIOUS_EVADE_RANGE && dist < nearestDist) {
+                nearestThreat = other;
+                nearestDist = dist;
+            }
+        }
+        if (nearestThreat) {
+            sn._behaviorState = 'evading';
+            sn._behaviorTarget = nearestThreat.id;
+            // Move to the open neighbor that maximizes distance from the threat.
+            const th = nearestThreat.body[0];
+            let bestEvadeDir = null;
+            let bestEvadeDist = -1;
+            let bestEvadeSpace = -1;
+            for (const [dx, dy] of DIRS) {
+                const nx = head.x + dx, ny = head.y + dy;
+                if (!inBounds(nx, ny) || occupied[ny * cols + nx]) continue;
+                const distFromThreat = Math.abs(nx - th.x) + Math.abs(ny - th.y);
+                const space = safeSpace(nx, ny, sn.body.length + safetyMargin);
+                if (space < sn.body.length) continue; // not safe enough
+                if (distFromThreat > bestEvadeDist ||
+                    (distFromThreat === bestEvadeDist && space > bestEvadeSpace)) {
+                    bestEvadeDist = distFromThreat;
+                    bestEvadeSpace = space;
+                    bestEvadeDir = { x: dx, y: dy };
+                }
+            }
+            if (bestEvadeDir) return bestEvadeDir;
+            // If no evasion direction is safe, fall through to normal phases.
+        }
+    }
+
+    // ================================================================
+    // Phase 0c: GREEDY — steal mode (armed after an eat-trigger roll in game.js).
+    // Once active, stays on until this snake eats the chosen nearest target food.
+    // ================================================================
+    if (sn.personality === 'greedy' && !sn.wandering && sn.greedyStealActive) {
+        let target = state.snakes.find(s =>
+            s.id === sn.greedyStealTargetSnakeId &&
+            !s.respawning &&
+            s.food
+        );
+
+        // If target vanished (removed/dead/no food), retarget nearest available food.
+        if (!target) {
+            let nearest = null;
+            let nearestDist = Infinity;
+            for (const other of state.snakes) {
+                if (other.id === sn.id || other.respawning || !other.food) continue;
+                const dist = Math.abs(head.x - other.food.x) + Math.abs(head.y - other.food.y);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = other;
+                }
+            }
+            if (nearest) {
+                target = nearest;
+                sn.greedyStealTargetSnakeId = nearest.id;
+            } else {
+                sn.greedyStealActive = false;
+                sn.greedyStealTargetSnakeId = null;
+            }
+        }
+
+        if (target && target.food) {
+            sn._behaviorState = 'stealing';
+            sn._behaviorTarget = target.id;
+            const dir = tryPathTo(target.food.x, target.food.y, safetyMargin);
+            if (dir) return dir;
+        }
+    }
+
+    // ================================================================
+    // Phase 1: Head toward own food — skipped entirely in wander mode.
+    // Safety margin is personality-dependent.
+    // ================================================================
+    if (sn.food && !sn.wandering) {
+        const dir = tryPathTo(sn.food.x, sn.food.y, safetyMargin);
+        if (dir) return dir;
     }
 
     // Phase 1b: In wander mode, navigate toward a random roam target.
@@ -168,7 +356,6 @@ function computeNextDirection(sn) {
         if (!sn.wanderTarget ||
             (head.x === sn.wanderTarget.x && head.y === sn.wanderTarget.y) ||
             occ[sn.wanderTarget.y * cols + sn.wanderTarget.x]) {
-            // Pick a random open cell, trying up to 30 candidates.
             let picked = null;
             for (let attempt = 0; attempt < 30; attempt++) {
                 const rx = Math.floor(Math.random() * state.cols);
@@ -205,7 +392,6 @@ function computeNextDirection(sn) {
     }
 
     // Phase 3: No clean path — maximise reachable space from each open neighbour.
-    // Signal desperation so gameTickForSnake can show a tight-space thought bubble.
     sn._desperationThisTick = true;
     let bestDir = null;
     let bestSpace = -1;

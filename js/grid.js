@@ -12,11 +12,7 @@ function inBounds(x, y) {
     return x >= 0 && x < state.cols && y >= 0 && y < state.rows;
 }
 
-function cellIdx(x, y) {
-    return y * state.cols + x;
-}
-
-// Returns a Uint8Array indexed by cellIdx(x, y).
+// Returns a Uint8Array indexed by y * state.cols + x.
 // 1 = occupied (snake segment or wall), 0 = free.
 // callerSn: the snake requesting the grid. Its head is excluded when excludeHead=true.
 //   All other snakes' bodies are always fully marked (no head exclusion for them).

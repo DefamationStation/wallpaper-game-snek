@@ -10,6 +10,7 @@ const THOUGHT_FULL = ['😌', '💤', '🌿', '😴'];
 const THOUGHT_HUNGRY = ['😋', '👀', '🍎', '⚡'];
 const THOUGHT_TIGHT = ['😰', '😬'];
 const THOUGHT_DEATH = ['💥', '💀', '😵'];
+const THOUGHT_RESPAWN = ['\u{1F389}', '\u{1F973}', '\u2728'];
 const THOUGHT_SAD = ['😢', '😭'];
 const THOUGHT_GROSS = ['🤢', '🤮'];
 const THOUGHT_GREET = ['👋', '🫂'];
@@ -34,25 +35,89 @@ function pickRandomSnekName(excludeSet) {
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function getNextSnakeId() {
+    if (!Number.isInteger(state.nextSnakeId) || state.nextSnakeId < 0) {
+        state.nextSnakeId = 0;
+    }
+    while (state.snakes.some(sn => sn.id === state.nextSnakeId)) {
+        state.nextSnakeId++;
+    }
+    const id = state.nextSnakeId;
+    state.nextSnakeId++;
+    return id;
+}
+
 // Spawn a chat-bubble thought above the snake's head.
 // The thought follows the snake's head for its lifetime.
 // pool: array of emojis to pick from.
 // lifetime: ms the bubble stays (default 2000). Use longer values for persistent mood states.
-function spawnThought(sn, pool, lifetime) {
+// opts.tint: optional rgba string for colored bubble background (default white).
+// opts.tag: optional string key; only one thought with a given tag can exist at a time.
+//   Re-spawning with the same tag refreshes the existing thought instead of adding a new one.
+function spawnThought(sn, pool, lifetime, opts) {
     if (!sn.body.length) return;
+    const now = performance.now();
+    const tag = opts && opts.tag;
+    const tint = opts && opts.tint;
+    const ttl = lifetime || 2000;
+    // If a tag is provided, refresh the existing tagged thought instead of stacking.
+    if (tag) {
+        for (const t of sn.thoughts) {
+            if (t.tag === tag) {
+                // Keep tagged thoughts visually stable while the state stays active.
+                // Do not hard-reset born every tick (that causes pop-in jitter).
+                t.lifetime = ttl;
+                t.tint = tint || null;
+                if (pool && pool.length && !pool.includes(t.emoji)) {
+                    t.emoji = pool[Math.floor(Math.random() * pool.length)];
+                }
+                const age = now - t.born;
+                if (age > ttl * 0.8) t.born = now - ttl * 0.8;
+                return;
+            }
+        }
+    }
     sn.thoughts.push({
         emoji: pool[Math.floor(Math.random() * pool.length)],
-        born: performance.now(),
-        lifetime: lifetime || 2000,
+        born: now,
+        lifetime: ttl,
+        tint: tint || null,
+        tag: tag || null,
     });
+}
+
+// Remove all thoughts with a specific tag from a snake.
+function clearTaggedThought(sn, tag) {
+    sn.thoughts = sn.thoughts.filter(t => t.tag !== tag);
+}
+
+// Pick a personality weighted toward variety.
+// Each personality already assigned to a living snake has its weight halved,
+// so unrepresented types are strongly favoured.
+function pickPersonality() {
+    const counts = {};
+    for (const p of PERSONALITIES) counts[p] = 0;
+    for (const sn of state.snakes) counts[sn.personality] = (counts[sn.personality] || 0) + 1;
+
+    // Base weight 1.0; halve for each existing snake with that personality.
+    const weights = PERSONALITIES.map(p => Math.pow(0.5, counts[p]));
+    const total = weights.reduce((a, b) => a + b, 0);
+    let roll = Math.random() * total;
+    for (let i = 0; i < weights.length; i++) {
+        roll -= weights[i];
+        if (roll <= 0) return PERSONALITIES[i];
+    }
+    return PERSONALITIES[PERSONALITIES.length - 1];
 }
 
 // Factory for a fresh snake object. id: integer identifier (0 = primary).
 // colorHead: optional hex string; falls back to SNAKE_COLORS[theme][id] or palette default.
 function makeSnake(id, body, colorHead, displayName) {
     const theme = state.theme || 'day';
-    const defaultColor = (SNAKE_COLORS[theme] && SNAKE_COLORS[theme][id])
-        || PALETTES[theme].snakeHead;
+    const palette = SNAKE_COLORS[theme] || [];
+    const defaultColor = palette.length
+        ? palette[id % palette.length]
+        : PALETTES[theme].snakeHead;
     const head = colorHead || defaultColor;
     return {
         id,
@@ -65,6 +130,17 @@ function makeSnake(id, body, colorHead, displayName) {
         colorHead: head,
         colorBody: lightenHex(head, 0.28),
         userCustomized: false,  // true once the user manually picks a color for this snake
+        // personality (persists across respawns, weighted toward variety)
+        personality: pickPersonality(),
+        // active behavior state (set by AI each tick, used for visual indicators)
+        // null = normal, 'killing' = aggressive hunt, 'feared' = being hunted,
+        // 'evading' = cautious fleeing, 'stealing' = greedy targeting other food
+        _behaviorState: null,
+        _behaviorTarget: null,   // id of the snake being targeted (for killing/feared pair)
+        _behaviorVisualState: null,
+        _behaviorVisualUntilMs: 0,
+        greedyStealActive: false,
+        greedyStealTargetSnakeId: null,
         // satiety
         satiety: 0,
         wandering: false,
@@ -81,16 +157,39 @@ function makeSnake(id, body, colorHead, displayName) {
         lastTickMs: 0,
         lastMoveMs: 0,
         lastGrossThoughtMs: 0,
+        lastDecayMs: 0,         // greedy personality: steady segment decay timer
         // respawn state
         respawning: false,
+        corpseFadeStartMs: 0,
         respawnAt: 0,
     };
 }
 
+// Pick the nearest other snake (with food) for greedy steal mode.
+// Returns true if a target was assigned.
+function assignGreedyStealTarget(sn, fromPos) {
+    const head = fromPos || sn.body[0];
+    if (!head) return false;
+    let best = null;
+    let bestDist = Infinity;
+    for (const other of state.snakes) {
+        if (other.id === sn.id || other.respawning || !other.food) continue;
+        const dist = Math.abs(head.x - other.food.x) + Math.abs(head.y - other.food.y);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = other;
+        }
+    }
+    sn.greedyStealTargetSnakeId = best ? best.id : null;
+    return !!best;
+}
+
 // ---- Per-snake game tick ----
 // Called by loop.js once per tick for each living (non-respawning) snake.
+// Returns true when this tick changed the snake's segment count.
 function gameTickForSnake(sn) {
     if (state.status !== 'running') return;
+    const lenBefore = sn.body.length;
 
     const now = performance.now();
 
@@ -98,8 +197,9 @@ function gameTickForSnake(sn) {
     if (sn.wandering) {
         const elapsed = now - sn.wanderStartMs;
 
-        // Lose 1 tail segment every WANDER_TRIM_INTERVAL_MS, up to WANDER_MAX_TRIMS.
-        if (sn.trimCount < WANDER_MAX_TRIMS &&
+        // Lose 1 tail segment every WANDER_TRIM_INTERVAL_MS, up to personality trim cap.
+        const trimCap = PERSONALITY_META[sn.personality]?.wanderTrims ?? WANDER_MAX_TRIMS;
+        if (sn.trimCount < trimCap &&
             now - sn.lastTrimMs >= WANDER_TRIM_INTERVAL_MS &&
             sn.body.length > 1) {
             sn.body.pop();
@@ -113,6 +213,14 @@ function gameTickForSnake(sn) {
             sn.wanderTarget = null;
             spawnThought(sn, THOUGHT_HUNGRY, 3000);
         }
+    }
+
+    // ---- Greedy steady decay: lose 1 segment every 20s ----
+    if (sn.personality === 'greedy' &&
+        sn.body.length > GREEDY_MIN_LENGTH &&
+        now - sn.lastDecayMs >= GREEDY_DECAY_INTERVAL_MS) {
+        sn.body.pop();
+        sn.lastDecayMs = now;
     }
 
     // If a wall has faded in (or is fading in) over the food cell, relocate it.
@@ -129,16 +237,38 @@ function gameTickForSnake(sn) {
     // Show tight-space thought if desperation AI fired this tick.
     if (sn._desperationThisTick) spawnThought(sn, THOUGHT_TIGHT);
 
+    // ---- Behavior state visual indicators ----
+    // Spawn persistent colored bubbles for active behavior states; clear when state ends.
+    const _bState = sn._behaviorState;
+    if (_bState && BEHAVIOR_TINTS[_bState]) {
+        sn._behaviorVisualState = _bState;
+        sn._behaviorVisualUntilMs = now + 500;
+        spawnThought(sn, BEHAVIOR_EMOJIS[_bState] || ['❓'], 900, {
+            tint: BEHAVIOR_TINTS[_bState],
+            tag: 'behavior',
+        });
+    } else if (sn._behaviorVisualState && now <= sn._behaviorVisualUntilMs) {
+        const vis = sn._behaviorVisualState;
+        spawnThought(sn, BEHAVIOR_EMOJIS[vis] || ['❓'], 900, {
+            tint: BEHAVIOR_TINTS[vis],
+            tag: 'behavior',
+        });
+    } else {
+        sn._behaviorVisualState = null;
+        sn._behaviorVisualUntilMs = 0;
+        clearTaggedThought(sn, 'behavior');
+    }
+
     const head = sn.body[0];
     const newHead = { x: head.x + sn.nextDir.x, y: head.y + sn.nextDir.y };
 
-    if (!inBounds(newHead.x, newHead.y)) { handleSnakeDeath(sn); return; }
+    if (!inBounds(newHead.x, newHead.y)) { handleSnakeDeath(sn); return false; }
 
     // Collision check: other snakes' bodies (and own body minus tail) are walls.
     const occupied = buildOccupiedGrid(false, false, sn);
     const tail = sn.body[sn.body.length - 1];
     occupied[tail.y * state.cols + tail.x] = 0;   // tail vacates this tick
-    if (occupied[newHead.y * state.cols + newHead.x]) { handleSnakeDeath(sn); return; }
+    if (occupied[newHead.y * state.cols + newHead.x]) { handleSnakeDeath(sn); return false; }
 
     const ateFood = sn.food &&
         newHead.x === sn.food.x &&
@@ -155,15 +285,16 @@ function gameTickForSnake(sn) {
 
         if (sn.body.length >= state.cols * state.rows) {
             triggerComplete();
-            return;
+            return sn.body.length !== lenBefore;
         } else {
             placeFood(sn);
         }
 
-        // Increment satiety; enter wander mode at SATIETY_MAX.
+        // Increment satiety; enter wander mode at personality-specific threshold.
+        const wanderThreshold = PERSONALITY_META[sn.personality]?.wanderSatiety ?? SATIETY_MAX;
         if (!sn.wandering) {
             sn.satiety++;
-            if (sn.satiety >= SATIETY_MAX) {
+            if (sn.satiety >= wanderThreshold) {
                 sn.satiety = 0;
                 sn.wandering = true;
                 sn.wanderStartMs = performance.now();
@@ -172,6 +303,32 @@ function gameTickForSnake(sn) {
                 spawnThought(sn, THOUGHT_FULL, 4000);
             }
         }
+
+        // Greedy steal mode trigger: only roll when a greedy snake eats.
+        if (sn.personality === 'greedy' && !sn.wandering && !sn.greedyStealActive) {
+            if (Math.random() < GREEDY_STEAL_TRIGGER_CHANCE) {
+                sn.greedyStealActive = assignGreedyStealTarget(sn, newHead);
+            }
+        }
+    }
+
+    // ---- Greedy: eat other snakes' food on contact ----
+    if (sn.personality === 'greedy' && sn.greedyStealActive) {
+        const target = state.snakes.find(s =>
+            s.id === sn.greedyStealTargetSnakeId &&
+            !s.respawning &&
+            s.food
+        );
+        if (!target) {
+            sn.greedyStealActive = false;
+            sn.greedyStealTargetSnakeId = null;
+        } else if (newHead.x === target.food.x && newHead.y === target.food.y) {
+            sn.body.push({ ...sn.body[sn.body.length - 1] });
+            spawnThought(sn, ['😋', '🍽️']);
+            placeFood(target);
+            sn.greedyStealActive = false;
+            sn.greedyStealTargetSnakeId = null;
+        }
     }
 
     // ---- Proximity greeting ----
@@ -179,6 +336,7 @@ function gameTickForSnake(sn) {
     // both snakes show a greeting thought (with a cooldown to avoid spam).
     checkGreetings(sn);
     checkGrossFoodNearby(sn, now);
+    return sn.body.length !== lenBefore;
 }
 
 const GREET_DISTANCE = 6; // Manhattan distance threshold
@@ -235,6 +393,7 @@ function checkGreetings(sn) {
 }
 
 function checkGrossFoodNearby(sn, now) {
+    if (sn.personality === 'greedy') return;
     if (sn.respawning || !sn.body.length) return;
     if (now - (sn.lastGrossThoughtMs || 0) < GROSS_FOOD_COOLDOWN_MS) return;
     const head = sn.body[0];
@@ -261,24 +420,31 @@ function handleSnakeDeath(sn) {
         return;
     }
 
-    // Spawn a death thought before clearing the body.
+    // Spawn a death thought; corpse stays in-place as a temporary obstacle.
+    const now = performance.now();
     spawnThought(sn, THOUGHT_DEATH);
     for (const survivor of state.snakes) {
         if (survivor.id !== sn.id && !survivor.respawning && survivor.body.length) {
-            spawnThought(survivor, THOUGHT_SAD);
+            if (survivor.personality !== 'aggressive') {
+                spawnThought(survivor, THOUGHT_SAD);
+            }
         }
     }
 
-    // Mark as respawning; body and food clear immediately.
+    // Mark as respawning but keep the body for a timed corpse phase:
+    // 0-5s: fully visible and collidable, 5-10s: visually fades, still collidable.
     sn.respawning = true;
-    sn.respawnAt = performance.now() + SNAKE_RESPAWN_DELAY_MS;
-    sn.prevBody = [];
-    sn.body = [];
+    sn.corpseFadeStartMs = now + SNAKE_CORPSE_HOLD_MS;
+    sn.respawnAt = now + SNAKE_RESPAWN_DELAY_MS;
+    sn.prevBody = sn.body.map(c => ({ x: c.x, y: c.y }));
     sn.food = null;
     sn.wandering = false;
     sn.wanderTarget = null;
     sn.satiety = 0;
     sn.trimCount = 0;
+    sn.lastMoveMs = now;
+    sn.greedyStealActive = false;
+    sn.greedyStealTargetSnakeId = null;
 }
 
 // ---- Respawn ----
@@ -286,7 +452,10 @@ function handleSnakeDeath(sn) {
 function respawnSnake(sn, ts) {
     const startBody = findRespawnPosition();
     if (!startBody) {
-        // Grid is too full — retry after another delay.
+        // Grid is too full - retry after another delay.
+        sn.body = [];
+        sn.prevBody = [];
+        sn.corpseFadeStartMs = 0;
         sn.respawnAt = ts + SNAKE_RESPAWN_DELAY_MS;
         return;
     }
@@ -302,27 +471,54 @@ function respawnSnake(sn, ts) {
     sn.thoughts = [];
     sn._desperationThisTick = false;
     sn.respawning = false;
+    sn.corpseFadeStartMs = 0;
     sn.respawnAt = 0;
+    sn._behaviorState = null;
+    sn._behaviorTarget = null;
+    sn._behaviorVisualState = null;
+    sn._behaviorVisualUntilMs = 0;
+    sn.greedyStealActive = false;
+    sn.greedyStealTargetSnakeId = null;
     sn.lastTickMs = ts;
     sn.lastMoveMs = ts;
     sn.lastGrossThoughtMs = 0;
+    sn.lastDecayMs = ts;
+    // personality is intentionally preserved across respawns
     placeFood(sn);
+
+    // Celebrate successful respawn.
+    spawnThought(sn, THOUGHT_RESPAWN, 2600);
+    for (const other of state.snakes) {
+        if (other.id === sn.id || other.respawning || !other.body.length) continue;
+        spawnThought(other, THOUGHT_RESPAWN, 2200);
+    }
 }
 
 // ---- Find a starting position for a new or respawning snake ----
-// Returns 3-cell body [{head}, {mid}, {tail}] or null if grid is too full.
+// Returns body [{head}, ...] with length 1-3 depending on board width.
 function findRespawnPosition() {
-    const grid = buildOccupiedGrid(false, true, null);
     const cols = state.cols, rows = state.rows;
+    if (cols < 1 || rows < 1) return null;
+
+    const grid = buildOccupiedGrid(false, true, null);
+    const len = Math.max(1, Math.min(3, cols));
+    const minHeadX = len - 1;
+    const maxHeadX = cols - 1;
+
     for (let attempt = 0; attempt < 50; attempt++) {
-        const x = 1 + Math.floor(Math.random() * (cols - 3));
+        const x = minHeadX + Math.floor(Math.random() * (maxHeadX - minHeadX + 1));
         const y = Math.floor(Math.random() * rows);
-        if (!grid[y * cols + x] && !grid[y * cols + (x - 1)] && !grid[y * cols + (x - 2)]) {
-            return [
-                { x: x, y: y },
-                { x: x - 1, y: y },
-                { x: x - 2, y: y },
-            ];
+        let blocked = false;
+        for (let i = 0; i < len; i++) {
+            if (grid[y * cols + (x - i)]) {
+                blocked = true;
+                break;
+            }
+        }
+        if (!blocked) {
+            const body = [];
+            for (let i = 0; i < len; i++) body.push({ x: x - i, y: y });
+            return body;
         }
     }
     return null;
@@ -331,10 +527,10 @@ function findRespawnPosition() {
 // ---- Add / Remove snakes (called from UI) ----
 function addSnake() {
     if (state.snakes.length >= MAX_SNAKES) return;
-    const newId = state.snakes.length;
+    const newId = getNextSnakeId();
     const theme = state.theme || 'day';
-    const color = (SNAKE_COLORS[theme] && SNAKE_COLORS[theme][newId])
-        || SNAKE_COLORS.day[newId % SNAKE_COLORS.day.length];
+    const palette = SNAKE_COLORS[theme] || SNAKE_COLORS.day;
+    const color = palette[newId % palette.length];
     const startBody = findRespawnPosition();
     if (!startBody) return;     // no room
     const usedNames = new Set(state.snakes.map(s => s.displayName).filter(Boolean));
@@ -350,6 +546,18 @@ function removeSnake(id) {
     const idx = state.snakes.findIndex(sn => sn.id === id);
     if (idx === -1) return;
     state.snakes.splice(idx, 1);
+
+    // Drop stale greeting state/cooldowns for the removed snake id.
+    const sid = String(id);
+    for (const key of Object.keys(_greetCooldowns)) {
+        const parts = key.split('-');
+        if (parts[0] === sid || parts[1] === sid) delete _greetCooldowns[key];
+    }
+    for (const key of Object.keys(_greetPairState)) {
+        const parts = key.split('-');
+        if (parts[0] === sid || parts[1] === sid) delete _greetPairState[key];
+    }
+
     if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
 }
 
@@ -389,6 +597,7 @@ function initGame() {
         const prev0 = state.snakes[0];
         const c0 = prev0 && prev0.userCustomized ? prev0.colorHead : null;
         state.snakes = [makeSnake(0, [], c0, pickRandomSnekName(new Set()))];
+        state.nextSnakeId = 1;
         if (prev0 && prev0.userCustomized) state.snakes[0].userCustomized = true;
         state.status = 'paused';
         if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
@@ -405,6 +614,7 @@ function initGame() {
     const prevSnake = state.snakes[0];
     const carryColor = prevSnake && prevSnake.userCustomized ? prevSnake.colorHead : null;
     state.snakes = [makeSnake(0, body, carryColor, pickRandomSnekName(new Set()))];
+    state.nextSnakeId = 1;
     if (prevSnake && prevSnake.userCustomized) state.snakes[0].userCustomized = true;
     state.status = 'running';
 

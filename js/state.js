@@ -12,10 +12,10 @@ const state = {
     // Each entry is a snake object (see makeSnake() in game.js).
     // snakes[0] is always the primary/only snake in single-snake mode.
     snakes: [],
+    nextSnakeId: 0,
 
     status: 'running',          // 'running' | 'paused' | 'gameover' | 'complete'
     tickMs: tpsToMs(DEFAULT_TPS),
-    lastTickTime: 0,
     restartTimer: null,
     restartCountdown: 0,
     theme: 'day',               // 'day' | 'night'
@@ -47,24 +47,6 @@ const state = {
         pendingBuildTimer: 0, // async build handle for pendingGen
     },
 };
-
-// ---- Backward-compat shorthands ----
-// All existing code that reads state.snake / state.food / state.nextDir
-// continues to work unchanged via these transparent getters/setters.
-Object.defineProperty(state, 'snake', {
-    get() { return state.snakes[0] && state.snakes[0].body; },
-    enumerable: false,
-});
-Object.defineProperty(state, 'food', {
-    get() { return state.snakes[0] && state.snakes[0].food; },
-    set(v) { if (state.snakes[0]) state.snakes[0].food = v; },
-    enumerable: false,
-});
-Object.defineProperty(state, 'nextDir', {
-    get() { return state.snakes[0] && state.snakes[0].nextDir; },
-    set(v) { if (state.snakes[0]) state.snakes[0].nextDir = v; },
-    enumerable: false,
-});
 
 // ============================================================
 // COLOUR PALETTES (day / night)

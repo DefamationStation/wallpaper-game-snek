@@ -435,3 +435,54 @@ input[type="number"]:focus {
     border-color: #7ec8a4;
     box-shadow: 0 0 0 2px rgba(126, 200, 164, 0.2);
 }
+
+/* === PERSONALITY TAG === */
+.personality-tag {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 9px;
+    opacity: 0.6;
+    display: block;
+    margin-top: -1px;
+    color: var(--text-secondary);
+}
+
+.personality-tag:hover {
+    opacity: 1;
+    color: var(--text);
+}
+
+/* === PERSONALITY DROPDOWN === */
+.personality-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 2px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 30;
+    min-width: 110px;
+    overflow: hidden;
+}
+
+.personality-option {
+    padding: 5px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s;
+}
+
+.personality-option:hover {
+    background: var(--btn-hover);
+}
+
+.personality-option.selected {
+    background: var(--btn-bg);
+    font-weight: 600;
+}

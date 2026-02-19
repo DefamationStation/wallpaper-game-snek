@@ -21,7 +21,8 @@ window._livelyBridge = {
             pauseBtn.textContent = 'Resume';
         } else if (!val && state.status === 'paused') {
             state.status = 'running';
-            state.lastTickTime = performance.now();
+            const resumeTs = performance.now();
+            for (const sn of state.snakes) sn.lastTickMs = resumeTs;
             pauseBtn.textContent = 'Pause';
         }
     },
@@ -36,19 +37,25 @@ window._livelyBridge = {
         wallCache.dirty = true;
         const p = PALETTES[state.theme];
         if (state.theme === 'night') {
-            state.colors.boardNight = p.board;
-            state.colors.gridLineNight = p.gridLine;
+            if (!state.userCustomized.board) {
+                state.colors.boardNight = p.board;
+                state.colors.gridLineNight = p.gridLine;
+            }
             if (!state.userCustomized.wall) state.colors.wallNight = p.wall;
         } else {
-            state.colors.board = p.board;
-            state.colors.gridLine = p.gridLine;
+            if (!state.userCustomized.board) {
+                state.colors.board = p.board;
+                state.colors.gridLine = p.gridLine;
+            }
             if (!state.userCustomized.wall) state.colors.wall = p.wall;
         }
-        // Reset non-customized snake colors to the new palette default.
+        // Reset non-customized snake colors to the new palette slot color.
         for (const sn of state.snakes) {
             if (!sn.userCustomized) {
-                sn.colorHead = p.snakeHead;
-                sn.colorBody = lightenHex(p.snakeHead, 0.28);
+                const palette = SNAKE_COLORS[state.theme] || [];
+                const slotColor = palette.length ? palette[sn.id % palette.length] : p.snakeHead;
+                sn.colorHead = slotColor;
+                sn.colorBody = lightenHex(slotColor, 0.28);
             }
         }
         if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
@@ -110,8 +117,9 @@ window._livelyBridge = {
         if (enable) {
             conwayInit(true);
             // Relocate each snake's food if it landed on a newly-generated Conway wall.
+            const occupied = buildOccupiedGrid(false, true, null);
             for (const sn of state.snakes) {
-                if (sn.food && buildOccupiedGrid(false, true, null)[sn.food.y * state.cols + sn.food.x]) {
+                if (sn.food && occupied[sn.food.y * state.cols + sn.food.x]) {
                     placeFood(sn);
                 }
             }

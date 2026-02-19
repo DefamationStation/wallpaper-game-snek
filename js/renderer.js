@@ -59,10 +59,12 @@ function drawEyes(headCell, dir) {
 // Draws a chat-cloud speech bubble following the snake's head for each active thought.
 // Bubbles appear instantly, stay for most of the lifetime, then fade out in the last 25%.
 function drawThoughts(sn, nowMs) {
-    if (!sn.thoughts.length || sn.respawning || !sn.body.length) return;
+    if (!sn.thoughts.length || !sn.body.length) return;
     const body = sn.body;
     const prevBody = sn.prevBody || body;
-    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs;
+    const personalitySpeed = PERSONALITY_META[sn.personality]?.speedMult ?? 1.0;
+    const chaseBoost = (sn._behaviorState === 'killing' || sn._behaviorState === 'feared') ? CHASE_SPEED_MULT : 1.0;
+    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs * personalitySpeed * chaseBoost;
     const moveProgress = effectiveTickMs > 0
         ? Math.min(1, Math.max(0, (nowMs - (sn.lastMoveMs || nowMs)) / effectiveTickMs))
         : 1;
@@ -77,20 +79,32 @@ function drawThoughts(sn, nowMs) {
         const age = nowMs - t.born;
         if (age >= t.lifetime) continue; // expired â€” drop it
         active.push(t);
+    }
+    sn.thoughts = active;
+    if (!active.length) return;
 
-        const progress = age / t.lifetime;           // 0 â†’ 1
+    // Keep behavior bubble anchored nearest the head to avoid apparent flicker
+    // when other thoughts appear/expire.
+    const behavior = active.find(t => t.tag === 'behavior');
+    const drawList = behavior
+        ? [behavior, ...active.filter(t => t !== behavior)]
+        : active;
+
+    for (let stackIndex = 0; stackIndex < drawList.length; stackIndex++) {
+        const t = drawList[stackIndex];
+        const age = nowMs - t.born;
+        const progress = age / t.lifetime;
         const fadeStart = 0.75;
+        const isBehavior = t.tag === 'behavior';
         let alpha = 1;
-        // Pop-in scale at the very start (first 8%)
         let scale = 1;
-        if (progress < 0.08) {
+        if (!isBehavior && progress < 0.08) {
             scale = progress / 0.08;
         }
-        if (progress > fadeStart) {
+        if (!isBehavior && progress > fadeStart) {
             alpha = 1 - (progress - fadeStart) / (1 - fadeStart);
         }
 
-        // Always follow the live head position.
         const px = headX * CELL_SIZE;
         const py = headY * CELL_SIZE;
         const cx = px + CELL_SIZE / 2;
@@ -100,10 +114,11 @@ function drawThoughts(sn, nowMs) {
         const pad = 5;
         const bubbleW = fontSize + pad * 2;
         const bubbleH = fontSize + pad * 1.6;
-        const tailH = 6;           // small triangle tail pointing down toward head
-        const r = 8;               // corner radius
+        const tailH = 6;
+        const r = 8;
         const bx = cx - bubbleW / 2;
-        const by = cy - bubbleH - tailH - CELL_SIZE * 0.2; // above head
+        const stackOffset = stackIndex * (bubbleH + 4);
+        const by = cy - bubbleH - tailH - CELL_SIZE * 0.2 - stackOffset;
 
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -111,30 +126,28 @@ function drawThoughts(sn, nowMs) {
         ctx.scale(scale, scale);
         ctx.translate(-cx, -(by + bubbleH / 2));
 
-        // Cloud shadow
-        ctx.shadowColor = 'rgba(0,0,0,0.18)';
+        const bubbleTint = t.tint || 'rgba(255,255,255,0.92)';
+        ctx.shadowColor = t.tint ? t.tint.replace(/[\d.]+\)$/, '0.3)') : 'rgba(0,0,0,0.18)';
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 2;
 
-        // Bubble fill
-        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillStyle = bubbleTint;
         roundRect(bx, by, bubbleW, bubbleH, r);
         ctx.fill();
 
-        // Tail triangle (small downward-pointing arrow)
-        ctx.beginPath();
-        ctx.moveTo(cx - 5, by + bubbleH);
-        ctx.lineTo(cx + 5, by + bubbleH);
-        ctx.lineTo(cx, by + bubbleH + tailH);
-        ctx.closePath();
-        ctx.fill();
+        if (stackIndex === 0) {
+            ctx.beginPath();
+            ctx.moveTo(cx - 5, by + bubbleH);
+            ctx.lineTo(cx + 5, by + bubbleH);
+            ctx.lineTo(cx, by + bubbleH + tailH);
+            ctx.closePath();
+            ctx.fill();
+        }
 
-        // Reset shadow before drawing emoji
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
 
-        // Emoji
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.font = fontSize + 'px serif';
@@ -142,8 +155,6 @@ function drawThoughts(sn, nowMs) {
 
         ctx.restore();
     }
-
-    sn.thoughts = active;
 }
 
 function drawOverlay() {
@@ -185,7 +196,7 @@ function drawOverlay() {
 // Draw Conway walls with per-cell alpha.
 // When the crossfade is complete the result is cached in an OffscreenCanvas
 // so subsequent frames just blit rather than iterate every cell.
-function drawConwayWalls(boardHex) {
+function drawConwayWalls() {
     const cw = state.conway;
     if (!cw.wallAlpha) return;
 
@@ -278,13 +289,23 @@ function updateConwayRegenRing(nowMs) {
 }
 
 // Draw a single snake (body + head + food) using its own per-snake colors.
-// Called once per entry in state.snakes. Skipped for respawning (dead) snakes.
+// Respawning snakes render as fading corpses until their respawn time.
 function drawSnake(sn, nowMs) {
-    if (sn.respawning) return;
     const body = sn.body;
     if (!body || body.length === 0) return;
+    const isCorpse = sn.respawning;
+    let corpseAlpha = 1;
+    if (isCorpse) {
+        const fadeStartMs = sn.corpseFadeStartMs || (sn.respawnAt - SNAKE_CORPSE_FADE_MS);
+        const fadeProgress = Math.min(1, Math.max(0, (nowMs - fadeStartMs) / SNAKE_CORPSE_FADE_MS));
+        corpseAlpha = 1 - fadeProgress;
+        if (corpseAlpha <= 0) return;
+    }
+
     const prevBody = sn.prevBody || body;
-    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs;
+    const personalitySpeed = PERSONALITY_META[sn.personality]?.speedMult ?? 1.0;
+    const chaseBoost = (sn._behaviorState === 'killing' || sn._behaviorState === 'feared') ? CHASE_SPEED_MULT : 1.0;
+    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs * personalitySpeed * chaseBoost;
     const moveProgress = effectiveTickMs > 0
         ? Math.min(1, Math.max(0, (nowMs - (sn.lastMoveMs || nowMs)) / effectiveTickMs))
         : 1;
@@ -298,8 +319,11 @@ function drawSnake(sn, nowMs) {
         };
     };
 
+    ctx.save();
+    if (isCorpse) ctx.globalAlpha = corpseAlpha;
+
     // Food (drawn under the snake so it shows behind the head if they overlap)
-    if (sn.food) {
+    if (!isCorpse && sn.food) {
         const pulse = 1 + 0.08 * Math.sin(nowMs / 300);
         const fr = (CELL_SIZE / 2 - 2) * pulse;
         const { px, py } = toPixel(sn.food.x, sn.food.y);
@@ -334,7 +358,8 @@ function drawSnake(sn, nowMs) {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    if (CELL_SIZE >= 14) drawEyes(headPos, sn.nextDir);
+    if (!isCorpse && CELL_SIZE >= 14) drawEyes(headPos, sn.nextDir);
+    ctx.restore();
 }
 
 function render(nowMs) {
@@ -362,7 +387,7 @@ function render(nowMs) {
     ctx.stroke();
 
     // Conway walls (below food and snakes)
-    if (state.conway.enabled) drawConwayWalls(boardColor);
+    if (state.conway.enabled) drawConwayWalls();
 
     // Draw all snakes (food + body + head), then all thought bubbles on top.
     for (const sn of state.snakes) {

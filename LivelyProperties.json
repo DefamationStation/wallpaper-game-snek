@@ -35,12 +35,6 @@
     "value": "#7ec8a4",
     "help": "Color of the snake head (body is auto-tinted)"
   },
-  "foodColor": {
-    "type": "color",
-    "text": "Food Color",
-    "value": "#e8a598",
-    "help": "Color of the food pellet"
-  },
   "boardColor": {
     "type": "color",
     "text": "Board Color",
@@ -61,7 +55,7 @@
     "type": "checkbox",
     "text": "Conway Walls",
     "value": false,
-    "help": "Enable Game of Life walls. Complex evolved structures fill the board and regenerate every 2 minutes, forcing the snake to find new paths."
+    "help": "Enable procedural maze-like walls. Organic structures fill the board and regenerate every 2 minutes, forcing the snake to find new paths."
   },
   "conwayIntensity": {
     "type": "slider",

@@ -92,7 +92,6 @@ pauseBtn.addEventListener('click', () => {
         // Reset per-snake tick timers to prevent burst-ticking after a long pause.
         const resumeTs = performance.now();
         for (const sn of state.snakes) { sn.lastTickMs = resumeTs; }
-        state.lastTickTime = resumeTs;  // keep for compat
         pauseBtn.textContent = 'Pause';
     }
 });
@@ -120,7 +119,10 @@ function rebuildSnakeColorRows() {
 
         const lbl = document.createElement('span');
         lbl.className = 'control-label';
-        lbl.style.cssText = 'display:flex;align-items:center;gap:6px;';
+        lbl.style.cssText = 'display:flex;flex-direction:column;gap:1px;';
+
+        const nameRow = document.createElement('span');
+        nameRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
 
         const nameText = document.createElement('span');
         nameText.textContent = label;
@@ -130,8 +132,55 @@ function rebuildSnakeColorRows() {
         segCount.style.cssText = 'font-size:10px;color:var(--text-secondary);padding:2px 6px;border:1px solid var(--divider);border-radius:10px;line-height:1;';
         segCount.textContent = (sn.body ? sn.body.length : 0) + ' seg';
 
-        lbl.appendChild(nameText);
-        lbl.appendChild(segCount);
+        nameRow.appendChild(nameText);
+        nameRow.appendChild(segCount);
+        lbl.appendChild(nameRow);
+
+        const personalityTag = document.createElement('span');
+        personalityTag.className = 'personality-tag';
+        personalityTag.style.cursor = 'pointer';
+        const pMeta = PERSONALITY_META[sn.personality];
+        personalityTag.textContent = pMeta ? pMeta.emoji + ' ' + pMeta.label : '';
+        personalityTag.title = 'Click to change personality';
+        personalityTag.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Remove any existing personality dropdown first.
+            const existing = document.querySelector('.personality-dropdown');
+            if (existing) existing.remove();
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'personality-dropdown';
+
+            for (const pKey of PERSONALITIES) {
+                const pm = PERSONALITY_META[pKey];
+                const opt = document.createElement('div');
+                opt.className = 'personality-option' + (pKey === sn.personality ? ' selected' : '');
+                opt.textContent = pm.emoji + ' ' + pm.label;
+                opt.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    sn.personality = pKey;
+                    sn._behaviorState = null;
+                    sn._behaviorTarget = null;
+                    personalityTag.textContent = pm.emoji + ' ' + pm.label;
+                    dropdown.remove();
+                });
+                dropdown.appendChild(opt);
+            }
+
+            // Position below the tag.
+            personalityTag.style.position = 'relative';
+            personalityTag.appendChild(dropdown);
+
+            // Close on outside click.
+            const closeDropdown = (ev) => {
+                if (!dropdown.contains(ev.target) && ev.target !== personalityTag) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeDropdown), 0);
+        });
+        lbl.appendChild(personalityTag);
 
         // rightGroup holds the color picker + (optional) remove button side by side.
         const rightGroup = document.createElement('div');
@@ -205,7 +254,8 @@ function syncSnakeSegmentCounts() {
         const segCount = document.getElementById('snakeSegCount-' + i);
         if (!segCount) return;
         const len = sn.body ? sn.body.length : 0;
-        segCount.textContent = len + ' seg';
+        const text = len + ' seg';
+        if (segCount.textContent !== text) segCount.textContent = text;
     });
 }
 
@@ -235,6 +285,7 @@ function collectThemeSetup() {
             displayName: sn.displayName || '',
             colorHead: sn.colorHead,
             userCustomized: !!sn.userCustomized,
+            personality: sn.personality || 'explorer',
         })),
     };
 }
@@ -310,13 +361,18 @@ function loadThemeSlot(slot) {
     regenLabel.textContent = formatRegenLabel(Math.round(state.conway.regenMs / 1000));
 
     state.snakes = [];
+    state.nextSnakeId = 0;
     for (let i = 0; i < Math.min(MAX_SNAKES, setup.snakes.length); i++) {
         const s = setup.snakes[i];
         const startBody = findRespawnPosition();
         if (!startBody) break;
         const fallbackColor = (SNAKE_COLORS[state.theme] && SNAKE_COLORS[state.theme][i]) || PALETTES[state.theme].snakeHead;
-        const sn = makeSnake(i, startBody, s.colorHead || fallbackColor, s.displayName || ('Snek ' + (i + 1)));
+        const id = state.nextSnakeId++;
+        const sn = makeSnake(id, startBody, s.colorHead || fallbackColor, s.displayName || ('Snek ' + (i + 1)));
         sn.userCustomized = !!s.userCustomized;
+        if (s.personality && PERSONALITIES.includes(s.personality)) {
+            sn.personality = s.personality;
+        }
         state.snakes.push(sn);
         placeFood(sn);
     }
@@ -375,20 +431,24 @@ nightToggle.addEventListener('click', () => {
 
     const p = PALETTES[state.theme];
     if (state.theme === 'night') {
-        state.colors.boardNight = p.board;
-        state.colors.gridLineNight = p.gridLine;
+        if (!state.userCustomized.board) {
+            state.colors.boardNight = p.board;
+            state.colors.gridLineNight = p.gridLine;
+        }
         if (!state.userCustomized.wall) state.colors.wallNight = p.wall;
     } else {
-        state.colors.board = p.board;
-        state.colors.gridLine = p.gridLine;
+        if (!state.userCustomized.board) {
+            state.colors.board = p.board;
+            state.colors.gridLine = p.gridLine;
+        }
         if (!state.userCustomized.wall) state.colors.wall = p.wall;
     }
 
     // Update snake colors for non-customized snakes to their per-slot palette color.
     for (const sn of state.snakes) {
         if (!sn.userCustomized) {
-            const slotColor = (SNAKE_COLORS[state.theme] && SNAKE_COLORS[state.theme][sn.id])
-                || p.snakeHead;
+            const palette = SNAKE_COLORS[state.theme] || [];
+            const slotColor = palette.length ? palette[sn.id % palette.length] : p.snakeHead;
             sn.colorHead = slotColor;
             sn.colorBody = lightenHex(slotColor, 0.28);
         }
@@ -413,8 +473,9 @@ conwayToggle.addEventListener('click', () => {
     if (state.conway.enabled) {
         conwayInit(true);
         // Relocate each snake's food if it landed on a newly-generated Conway wall.
+        const occupied = buildOccupiedGrid(false, true, null);
         for (const sn of state.snakes) {
-            if (sn.food && buildOccupiedGrid(false, true, null)[sn.food.y * state.cols + sn.food.x]) {
+            if (sn.food && occupied[sn.food.y * state.cols + sn.food.x]) {
                 placeFood(sn);
             }
         }
