@@ -403,3 +403,35 @@ input[type="number"]:focus {
     cursor: not-allowed;
     pointer-events: none;
 }
+
+.theme-slot-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.theme-slot-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, border-color 0.15s;
+}
+
+.theme-slot-btn:hover {
+    background: var(--btn-hover);
+}
+
+.theme-slot-btn:active {
+    transform: scale(0.95);
+}
+
+.theme-slot-btn.saved {
+    border-color: #7ec8a4;
+    box-shadow: 0 0 0 2px rgba(126, 200, 164, 0.2);
+}

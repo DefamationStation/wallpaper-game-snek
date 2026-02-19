@@ -29,6 +29,7 @@ function gameLoop(ts) {
     }
 
     render(ts);
+    if (window._uiSyncSnakeSegCounts) window._uiSyncSnakeSegCounts();
     loopId = requestAnimationFrame(gameLoop);
 }
 

@@ -12,6 +12,7 @@ const THOUGHT_TIGHT = ['😰', '😬'];
 const THOUGHT_DEATH = ['💥', '💀'];
 const THOUGHT_SAD = ['😢', '😭'];
 const THOUGHT_GREET = ['👋', '🫂'];
+const THOUGHT_CHAT = ['💬', '🗨️', '🗣️'];
 const SNEK_NAME_POOL = [
     'Snekboi', 'Snekgirl', 'Noodlebro', 'Noodlette', 'Sir Hiss', 'Lady Loop',
     'Wiggles', 'Boop Snek', 'Cuddles', 'Slinky', 'Hissy Elliott', 'Snakira',
@@ -24,6 +25,7 @@ const SNEK_NAME_POOL = [
 
 // Cooldown per snake pair (keyed by sorted id pair) to avoid spamming greetings.
 const _greetCooldowns = {};
+const _greetPairState = {};
 
 function pickRandomSnekName(excludeSet) {
     const available = SNEK_NAME_POOL.filter(n => !excludeSet.has(n));
@@ -55,6 +57,7 @@ function makeSnake(id, body, colorHead, displayName) {
         id,
         displayName,
         body,
+        prevBody: body.map(c => ({ x: c.x, y: c.y })),
         food: null,
         nextDir: { x: 1, y: 0 },
         // per-snake colors (food is always derived from colorHead)
@@ -75,6 +78,7 @@ function makeSnake(id, body, colorHead, displayName) {
         _desperationThisTick: false,
         // per-snake tick timer (used by loop.js)
         lastTickMs: 0,
+        lastMoveMs: 0,
         // respawn state
         respawning: false,
         respawnAt: 0,
@@ -138,8 +142,11 @@ function gameTickForSnake(sn) {
         newHead.x === sn.food.x &&
         newHead.y === sn.food.y;
 
+    const prevBody = sn.body.map(c => ({ x: c.x, y: c.y }));
     sn.body.unshift(newHead);
     if (!ateFood) sn.body.pop();
+    sn.prevBody = prevBody;
+    sn.lastMoveMs = now;
 
     if (ateFood) {
         spawnThought(sn, THOUGHT_EAT);
@@ -172,7 +179,9 @@ function gameTickForSnake(sn) {
 }
 
 const GREET_DISTANCE = 6; // Manhattan distance threshold
+const GREET_RESET_DISTANCE = 10; // must separate by this distance before greeting again
 const GREET_COOLDOWN_MS = 8000; // minimum ms between greetings for a given pair
+const GREET_CHAT_AFTER_MS = 4000; // continuous proximity time before chat bubble appears
 
 function checkGreetings(sn) {
     if (state.snakes.length < 2) return;
@@ -182,18 +191,41 @@ function checkGreetings(sn) {
 
     for (const other of state.snakes) {
         if (other.id === sn.id || other.respawning || !other.body.length) continue;
+        if (sn.id > other.id) continue; // process each pair only once per tick
         const otherHead = other.body[0];
         const dist = Math.abs(head.x - otherHead.x) + Math.abs(head.y - otherHead.y);
-        if (dist > GREET_DISTANCE) continue;
 
         // Use a sorted key so A→B and B→A share the same cooldown entry.
         const key = [sn.id, other.id].sort().join('-');
-        const lastGreet = _greetCooldowns[key] || 0;
-        if (now - lastGreet < GREET_COOLDOWN_MS) continue;
+        if (!_greetPairState[key]) {
+            _greetPairState[key] = { canGreet: true, nearSince: 0, chatted: false };
+        }
+        const pair = _greetPairState[key];
 
-        _greetCooldowns[key] = now;
-        spawnThought(sn, THOUGHT_GREET, 2500);
-        spawnThought(other, THOUGHT_GREET, 2500);
+        if (dist > GREET_DISTANCE) {
+            pair.nearSince = 0;
+            pair.chatted = false;
+            if (dist >= GREET_RESET_DISTANCE) pair.canGreet = true;
+            continue;
+        }
+
+        if (!pair.nearSince) pair.nearSince = now;
+
+        if (pair.canGreet) {
+            const lastGreet = _greetCooldowns[key] || 0;
+            if (now - lastGreet >= GREET_COOLDOWN_MS) {
+                _greetCooldowns[key] = now;
+                pair.canGreet = false;
+                spawnThought(sn, THOUGHT_GREET, 2500);
+                spawnThought(other, THOUGHT_GREET, 2500);
+            }
+        }
+
+        if (!pair.chatted && now - pair.nearSince >= GREET_CHAT_AFTER_MS) {
+            pair.chatted = true;
+            spawnThought(sn, THOUGHT_CHAT, 2500);
+            spawnThought(other, THOUGHT_CHAT, 2500);
+        }
     }
 }
 
@@ -219,6 +251,7 @@ function handleSnakeDeath(sn) {
     // Mark as respawning; body and food clear immediately.
     sn.respawning = true;
     sn.respawnAt = performance.now() + SNAKE_RESPAWN_DELAY_MS;
+    sn.prevBody = [];
     sn.body = [];
     sn.food = null;
     sn.wandering = false;
@@ -237,6 +270,7 @@ function respawnSnake(sn, ts) {
         return;
     }
     sn.body = startBody;
+    sn.prevBody = startBody.map(c => ({ x: c.x, y: c.y }));
     sn.food = null;
     sn.nextDir = { x: 1, y: 0 };
     sn.satiety = 0;
@@ -249,6 +283,7 @@ function respawnSnake(sn, ts) {
     sn.respawning = false;
     sn.respawnAt = 0;
     sn.lastTickMs = ts;
+    sn.lastMoveMs = ts;
     placeFood(sn);
 }
 

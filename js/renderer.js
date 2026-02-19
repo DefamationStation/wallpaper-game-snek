@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // ============================================================
 // RENDERER
@@ -64,10 +64,10 @@ function drawThoughts(sn, nowMs) {
     const active = [];
     for (const t of sn.thoughts) {
         const age = nowMs - t.born;
-        if (age >= t.lifetime) continue; // expired — drop it
+        if (age >= t.lifetime) continue; // expired â€” drop it
         active.push(t);
 
-        const progress = age / t.lifetime;           // 0 → 1
+        const progress = age / t.lifetime;           // 0 â†’ 1
         const fadeStart = 0.75;
         let alpha = 1;
         // Pop-in scale at the very start (first 8%)
@@ -250,7 +250,7 @@ function drawConwayWalls(boardHex) {
 // Uses stroke-dashoffset on a pre-placed SVG circle (no canvas drawing needed).
 const _regenRing = document.getElementById('conwayRegenRing');
 const _regenRingBg = document.getElementById('conwayRegenRingBg');
-const _REGEN_CIRC = 2 * Math.PI * 11; // circumference for r=11 ≈ 69.115
+const _REGEN_CIRC = 2 * Math.PI * 11; // circumference for r=11 â‰ˆ 69.115
 
 function updateConwayRegenRing(nowMs) {
     const enabled = state.conway.enabled;
@@ -272,6 +272,20 @@ function drawSnake(sn, nowMs) {
     if (sn.respawning) return;
     const body = sn.body;
     if (!body || body.length === 0) return;
+    const prevBody = sn.prevBody || body;
+    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs;
+    const moveProgress = effectiveTickMs > 0
+        ? Math.min(1, Math.max(0, (nowMs - (sn.lastMoveMs || nowMs)) / effectiveTickMs))
+        : 1;
+    const t = state.smoothMovement ? moveProgress : 1;
+    const segPos = (i) => {
+        const cur = body[i];
+        const prev = prevBody[i] || prevBody[Math.max(0, prevBody.length - 1)] || cur;
+        return {
+            x: prev.x + (cur.x - prev.x) * t,
+            y: prev.y + (cur.y - prev.y) * t,
+        };
+    };
 
     // Food (drawn under the snake so it shows behind the head if they overlap)
     if (sn.food) {
@@ -287,9 +301,11 @@ function drawSnake(sn, nowMs) {
         ctx.shadowBlur = 0;
     }
 
-    // Body (tail → neck, back to front)
+    // Body (tail -> neck, back to front)
     for (let i = body.length - 1; i >= 1; i--) {
-        const { px, py } = toPixel(body[i].x, body[i].y);
+        const p = segPos(i);
+        const px = p.x * CELL_SIZE;
+        const py = p.y * CELL_SIZE;
         const alpha = 0.55 + 0.45 * (1 - i / body.length);
         ctx.fillStyle = hexToRgba(sn.colorBody, alpha);
         roundRect(px + 1.5, py + 1.5, CELL_SIZE - 3, CELL_SIZE - 3, 4);
@@ -297,7 +313,9 @@ function drawSnake(sn, nowMs) {
     }
 
     // Head
-    const { px, py } = toPixel(body[0].x, body[0].y);
+    const headPos = segPos(0);
+    const px = headPos.x * CELL_SIZE;
+    const py = headPos.y * CELL_SIZE;
     ctx.fillStyle = sn.colorHead;
     ctx.shadowColor = sn.colorHead;
     ctx.shadowBlur = 4;
@@ -305,7 +323,7 @@ function drawSnake(sn, nowMs) {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    if (CELL_SIZE >= 14) drawEyes(body[0], sn.nextDir);
+    if (CELL_SIZE >= 14) drawEyes(headPos, sn.nextDir);
 }
 
 function render(nowMs) {
@@ -349,3 +367,4 @@ function render(nowMs) {
     // Status overlays (paused / game over / complete)
     if (status !== 'running') drawOverlay();
 }
+

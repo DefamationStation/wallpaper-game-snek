@@ -1,7 +1,8 @@
 ﻿{
+  "title": "snek",
   "sec_game": {
     "type": "label",
-    "value": "Game""title": "Snek",
+    "value": "Game"
   },
   "speed": {
     "type": "slider",

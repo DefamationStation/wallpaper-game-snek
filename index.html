@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snake Wallpaper</title>
+  <title>snek</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -44,6 +44,13 @@
       <div class="control-row">
         <span class="control-label">Speed <span style="color:var(--text-secondary);font-size:10px;">tps</span></span>
         <input type="number" id="speedInput" min="1" max="60" value="8" aria-label="Game speed (ticks per second)">
+      </div>
+
+      <div class="control-row">
+        <span class="control-label">Smooth Move</span>
+        <div class="toggle active" id="smoothToggle" role="switch" aria-checked="true" aria-label="Smooth snake movement">
+          <div class="toggle-thumb"></div>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -115,6 +122,15 @@
       <div class="button-row">
         <button class="action-btn" id="pauseBtn">Pause</button>
         <button class="action-btn" id="restartBtn">Restart</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Theme Slots</div>
+      <div class="theme-slot-row">
+        <button class="theme-slot-btn" data-slot="1" aria-label="Save to theme slot 1">1</button>
+        <button class="theme-slot-btn" data-slot="2" aria-label="Save to theme slot 2">2</button>
+        <button class="theme-slot-btn" data-slot="3" aria-label="Save to theme slot 3">3</button>
       </div>
 
     </div>

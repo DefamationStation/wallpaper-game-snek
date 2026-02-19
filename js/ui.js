@@ -10,6 +10,7 @@ const closeBtn      = document.getElementById('closeBtn');
 const pauseBtn      = document.getElementById('pauseBtn');
 const restartBtn    = document.getElementById('restartBtn');
 const speedInput    = document.getElementById('speedInput');
+const smoothToggle  = document.getElementById('smoothToggle');
 const nightToggle   = document.getElementById('nightToggle');
 const boardPicker   = document.getElementById('boardColorPicker');
 const wallPicker    = document.getElementById('wallColorPicker');
@@ -21,6 +22,8 @@ const conwayIntSlider = document.getElementById('conwayIntensitySlider');
 const conwayRegenInput = document.getElementById('conwayRegenInput');
 const regenLabel    = document.getElementById('regenLabel');
 const snakeColorRows = document.getElementById('snakeColorRows');
+const themeSlotBtns = Array.from(document.querySelectorAll('.theme-slot-btn'));
+const _themeSlotMem = {};
 
 // ---- Panel open/close ----
 settingsBtn.addEventListener('click', (e) => {
@@ -72,6 +75,13 @@ speedInput.addEventListener('change', function () {
     state.tickMs = tpsToMs(tps);
 });
 
+// ---- Smooth movement ----
+smoothToggle.addEventListener('click', () => {
+    state.smoothMovement = !state.smoothMovement;
+    smoothToggle.classList.toggle('active', state.smoothMovement);
+    smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+});
+
 // ---- Pause / Resume ----
 pauseBtn.addEventListener('click', () => {
     if (state.status === 'running') {
@@ -110,7 +120,18 @@ function rebuildSnakeColorRows() {
 
         const lbl = document.createElement('span');
         lbl.className = 'control-label';
-        lbl.textContent = label;
+        lbl.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+        const nameText = document.createElement('span');
+        nameText.textContent = label;
+
+        const segCount = document.createElement('span');
+        segCount.id = 'snakeSegCount-' + i;
+        segCount.style.cssText = 'font-size:10px;color:var(--text-secondary);padding:2px 6px;border:1px solid var(--divider);border-radius:10px;line-height:1;';
+        segCount.textContent = (sn.body ? sn.body.length : 0) + ' seg';
+
+        lbl.appendChild(nameText);
+        lbl.appendChild(segCount);
 
         // rightGroup holds the color picker + (optional) remove button side by side.
         const rightGroup = document.createElement('div');
@@ -156,6 +177,8 @@ function rebuildSnakeColorRows() {
         snakeColorRows.appendChild(row);
     });
 
+    syncSnakeSegmentCounts();
+
     // Update the Add Snake button's disabled state.
     const addBtn = document.getElementById('addSnakeBtn');
     if (addBtn) {
@@ -175,6 +198,145 @@ function syncSnakeColorRows() {
         if (picker) picker.value = sn.colorHead;
         if (swatch) swatch.style.background = sn.colorHead;
     });
+}
+
+function syncSnakeSegmentCounts() {
+    state.snakes.forEach((sn, i) => {
+        const segCount = document.getElementById('snakeSegCount-' + i);
+        if (!segCount) return;
+        const len = sn.body ? sn.body.length : 0;
+        segCount.textContent = len + ' seg';
+    });
+}
+
+function collectThemeSetup() {
+    return {
+        theme: state.theme,
+        tickMs: state.tickMs,
+        smoothMovement: state.smoothMovement,
+        userCustomized: {
+            board: !!state.userCustomized.board,
+            wall: !!state.userCustomized.wall,
+        },
+        colors: {
+            board: state.colors.board,
+            boardNight: state.colors.boardNight,
+            wall: state.colors.wall,
+            wallNight: state.colors.wallNight,
+            gridLine: state.colors.gridLine,
+            gridLineNight: state.colors.gridLineNight,
+        },
+        conway: {
+            enabled: !!state.conway.enabled,
+            intensity: state.conway.intensity,
+            regenMs: state.conway.regenMs,
+        },
+        snakes: state.snakes.map((sn) => ({
+            displayName: sn.displayName || '',
+            colorHead: sn.colorHead,
+            userCustomized: !!sn.userCustomized,
+        })),
+    };
+}
+
+function saveThemeSlot(slot) {
+    if (!slot) return;
+    const key = 'snek.themeSlot.' + slot;
+    const payload = JSON.stringify(collectThemeSetup());
+    try {
+        localStorage.setItem(key, payload);
+    } catch (_) {
+        _themeSlotMem[key] = payload;
+    }
+
+    const btn = themeSlotBtns.find(b => Number(b.dataset.slot) === slot);
+    if (btn) {
+        btn.classList.add('saved');
+        setTimeout(() => btn.classList.remove('saved'), 700);
+    }
+}
+
+function loadThemeSlot(slot) {
+    if (!slot) return;
+    const key = 'snek.themeSlot.' + slot;
+    let raw = null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch (_) {
+        raw = null;
+    }
+    if (!raw && _themeSlotMem[key]) raw = _themeSlotMem[key];
+    if (!raw) return;
+
+    let setup = null;
+    try {
+        setup = JSON.parse(raw);
+    } catch (_) {
+        return;
+    }
+    if (!setup || !Array.isArray(setup.snakes) || setup.snakes.length < 1) return;
+
+    state.tickMs = Number(setup.tickMs) || state.tickMs;
+    speedInput.value = Math.max(MIN_TPS, Math.min(MAX_TPS, Math.round(1000 / state.tickMs)));
+
+    state.smoothMovement = setup.smoothMovement !== false;
+    smoothToggle.classList.toggle('active', state.smoothMovement);
+    smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+
+    if (setup.userCustomized) {
+        state.userCustomized.board = !!setup.userCustomized.board;
+        state.userCustomized.wall = !!setup.userCustomized.wall;
+    }
+    if (setup.colors) {
+        state.colors.board = setup.colors.board || state.colors.board;
+        state.colors.boardNight = setup.colors.boardNight || state.colors.boardNight;
+        state.colors.wall = setup.colors.wall || state.colors.wall;
+        state.colors.wallNight = setup.colors.wallNight || state.colors.wallNight;
+        state.colors.gridLine = setup.colors.gridLine || state.colors.gridLine;
+        state.colors.gridLineNight = setup.colors.gridLineNight || state.colors.gridLineNight;
+    }
+
+    const goNight = setup.theme === 'night';
+    state.theme = goNight ? 'night' : 'day';
+    nightToggle.classList.toggle('active', goNight);
+    nightToggle.setAttribute('aria-checked', String(goNight));
+    document.body.setAttribute('data-theme', state.theme);
+    wallCache.dirty = true;
+
+    state.conway.intensity = Math.max(1, Math.min(10, Number(setup.conway && setup.conway.intensity) || 5));
+    state.conway.regenMs = Math.max(30_000, Math.min(500_000, Number(setup.conway && setup.conway.regenMs) || 120_000));
+    conwayIntSlider.value = state.conway.intensity;
+    conwayRegenInput.value = Math.round(state.conway.regenMs / 1000);
+    regenLabel.textContent = formatRegenLabel(Math.round(state.conway.regenMs / 1000));
+
+    state.snakes = [];
+    for (let i = 0; i < Math.min(MAX_SNAKES, setup.snakes.length); i++) {
+        const s = setup.snakes[i];
+        const startBody = findRespawnPosition();
+        if (!startBody) break;
+        const fallbackColor = (SNAKE_COLORS[state.theme] && SNAKE_COLORS[state.theme][i]) || PALETTES[state.theme].snakeHead;
+        const sn = makeSnake(i, startBody, s.colorHead || fallbackColor, s.displayName || ('Snek ' + (i + 1)));
+        sn.userCustomized = !!s.userCustomized;
+        state.snakes.push(sn);
+        placeFood(sn);
+    }
+    if (!state.snakes.length) initGame();
+
+    const conwayEnabled = !!(setup.conway && setup.conway.enabled);
+    state.conway.enabled = conwayEnabled;
+    conwayToggle.classList.toggle('active-orange', conwayEnabled);
+    conwayToggle.setAttribute('aria-checked', String(conwayEnabled));
+    conwayControls.classList.toggle('visible', conwayEnabled);
+    if (conwayEnabled) conwayInit(true); else conwayClear();
+
+    const currentBoard = state.theme === 'night' ? state.colors.boardNight : state.colors.board;
+    const currentWall = state.theme === 'night' ? state.colors.wallNight : state.colors.wall;
+    boardPicker.value = currentBoard;
+    boardSwatch.style.background = currentBoard;
+    wallPicker.value = currentWall;
+    wallSwatch.style.background = currentWall;
+
+    if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
 }
 
 // ---- Board colour ----
@@ -311,13 +473,29 @@ resizeCanvas();
 
 initGame();
 
+smoothToggle.classList.toggle('active', state.smoothMovement);
+smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+
 // Build per-snake color rows after initGame() has populated state.snakes.
 rebuildSnakeColorRows();
 
 // ---- Add Snake button ----
 document.getElementById('addSnakeBtn').addEventListener('click', () => addSnake());
+themeSlotBtns.forEach((btn) => {
+    const slot = Number(btn.dataset.slot);
+    btn.title = 'Click to load, right-click or Alt+Click to save';
+    btn.addEventListener('click', (e) => {
+        if (e.altKey) saveThemeSlot(slot);
+        else loadThemeSlot(slot);
+    });
+    btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        saveThemeSlot(slot);
+    });
+});
 
 // Expose rebuildSnakeColorRows so game.js can call it when the snake roster changes.
 window._uiRebuildSnakeRows = rebuildSnakeColorRows;
+window._uiSyncSnakeSegCounts = syncSnakeSegmentCounts;
 
 startLoop();
