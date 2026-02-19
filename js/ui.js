@@ -165,6 +165,10 @@ function rebuildSnakeColorRows() {
                     sn._behaviorVisualUntilMs = 0;
                     sn.greedyStealActive = false;
                     sn.greedyStealTargetSnakeId = null;
+                    sn.aggressiveRetaliationTargetSnakeId = null;
+                    sn.aggressiveRetaliationUntilMs = 0;
+                    sn.aggressiveKillTargetSnakeId = null;
+                    sn.aggressiveKillUntilMs = 0;
                     clearTaggedThought(sn, 'behavior');
                     personalityTag.textContent = pm.emoji + ' ' + pm.label;
                     dropdown.remove();

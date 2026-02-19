@@ -43,8 +43,9 @@ const PERSONALITY_META = {
 const GREEDY_DECAY_INTERVAL_MS = 10_000; // greedy loses 1 segment every 10s
 const GREEDY_MIN_LENGTH = 3;             // never decays below this length
 const GREEDY_STEAL_TRIGGER_CHANCE = 0.3; // chance to enter steal mode after a greedy snake eats
-const AGGRESSIVE_KILL_RANGE = 4;         // Manhattan distance from food to trigger kill mode
+const AGGRESSIVE_KILL_RANGE = 5;         // Manhattan distance from food to trigger kill mode
 const AGGRESSIVE_KILL_CHANCE = 0.3;      // probability per tick to enter kill mode
+const AGGRESSIVE_KILL_DURATION_MS = 10_000; // once triggered by food proximity, stay in kill mode for 10s
 const AGGRESSIVE_RETALIATE_DURATION_MS = 20_000; // aggressive snake hunts food thief for 20s
 const CAUTIOUS_EVADE_RANGE = 5;          // Manhattan distance before cautious evades
 
@@ -56,7 +57,7 @@ const BEHAVIOR_TINTS = {
     stealing: 'rgba(255, 210, 80, 0.85)',   // gold bubble for greedy food theft
 };
 const BEHAVIOR_EMOJIS = {
-    killing: ['😤', '🔥'],
+    killing: ['😤', '😡', '🤬'],
     feared: ['😨', '😱'],
     evading: ['😰', '🫣'],
     stealing: ['🤑', '💰'],

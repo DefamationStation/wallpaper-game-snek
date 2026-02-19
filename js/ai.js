@@ -239,6 +239,7 @@ function computeNextDirection(sn) {
         const nowMs = performance.now();
         let target = null;
         let forcedRetaliation = false;
+        let forcedKillLock = false;
 
         // Forced target: set by game.js when a greedy snake steals this snake's food.
         if (sn.aggressiveRetaliationUntilMs > nowMs &&
@@ -258,6 +259,27 @@ function computeNextDirection(sn) {
             sn.aggressiveRetaliationUntilMs = 0;
         }
 
+        // Timed kill lock: after a normal near-food trigger succeeds, stay in kill mode
+        // against that target for a fixed duration.
+        if (!target) {
+            if (sn.aggressiveKillUntilMs > nowMs &&
+                Number.isInteger(sn.aggressiveKillTargetSnakeId)) {
+                target = state.snakes.find(other =>
+                    other.id === sn.aggressiveKillTargetSnakeId &&
+                    !other.respawning &&
+                    other.body.length
+                ) || null;
+                forcedKillLock = !!target;
+                if (!target) {
+                    sn.aggressiveKillTargetSnakeId = null;
+                    sn.aggressiveKillUntilMs = 0;
+                }
+            } else if (sn.aggressiveKillUntilMs) {
+                sn.aggressiveKillTargetSnakeId = null;
+                sn.aggressiveKillUntilMs = 0;
+            }
+        }
+
         // Normal kill trigger: another snake's head is near our food.
         if (!target && !sn.wandering) {
             let targetDist = Infinity;
@@ -273,7 +295,18 @@ function computeNextDirection(sn) {
             }
         }
 
-        if (target && (forcedRetaliation || Math.random() < AGGRESSIVE_KILL_CHANCE)) {
+        let shouldKill = false;
+        if (target) {
+            if (forcedRetaliation || forcedKillLock) {
+                shouldKill = true;
+            } else if (Math.random() < AGGRESSIVE_KILL_CHANCE) {
+                shouldKill = true;
+                sn.aggressiveKillTargetSnakeId = target.id;
+                sn.aggressiveKillUntilMs = nowMs + AGGRESSIVE_KILL_DURATION_MS;
+            }
+        }
+
+        if (target && shouldKill) {
             sn._behaviorState = 'killing';
             sn._behaviorTarget = target.id;
             // Mark the victim as feared.

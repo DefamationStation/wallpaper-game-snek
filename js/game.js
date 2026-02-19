@@ -150,6 +150,8 @@ function makeSnake(id, body, colorHead, displayName) {
         greedyStealTargetSnakeId: null,
         aggressiveRetaliationTargetSnakeId: null,
         aggressiveRetaliationUntilMs: 0,
+        aggressiveKillTargetSnakeId: null,
+        aggressiveKillUntilMs: 0,
         // satiety
         satiety: 0,
         wandering: false,
@@ -338,6 +340,8 @@ function gameTickForSnake(sn) {
             if (target.personality === 'aggressive') {
                 target.aggressiveRetaliationTargetSnakeId = sn.id;
                 target.aggressiveRetaliationUntilMs = now + AGGRESSIVE_RETALIATE_DURATION_MS;
+                target.aggressiveKillTargetSnakeId = null;
+                target.aggressiveKillUntilMs = 0;
                 // Retaliation overrides passive roam behavior immediately.
                 target.wandering = false;
                 target.wanderTarget = null;
@@ -464,6 +468,8 @@ function handleSnakeDeath(sn) {
     sn.greedyStealTargetSnakeId = null;
     sn.aggressiveRetaliationTargetSnakeId = null;
     sn.aggressiveRetaliationUntilMs = 0;
+    sn.aggressiveKillTargetSnakeId = null;
+    sn.aggressiveKillUntilMs = 0;
 }
 
 // ---- Respawn ----
@@ -500,6 +506,8 @@ function respawnSnake(sn, ts) {
     sn.greedyStealTargetSnakeId = null;
     sn.aggressiveRetaliationTargetSnakeId = null;
     sn.aggressiveRetaliationUntilMs = 0;
+    sn.aggressiveKillTargetSnakeId = null;
+    sn.aggressiveKillUntilMs = 0;
     sn.lastTickMs = ts;
     sn.lastMoveMs = ts;
     sn.lastGrossThoughtMs = 0;
