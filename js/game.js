@@ -10,6 +10,7 @@ const THOUGHT_FULL = ['😌', '💤', '🌿', '😴'];
 const THOUGHT_HUNGRY = ['😋', '👀', '🍎', '⚡'];
 const THOUGHT_TIGHT = ['😰', '😬'];
 const THOUGHT_DEATH = ['💥', '💀'];
+const THOUGHT_SAD = ['😢', '😭'];
 const THOUGHT_GREET = ['👋', '🫂'];
 
 // Cooldown per snake pair (keyed by sorted id pair) to avoid spamming greetings.
@@ -193,6 +194,11 @@ function handleSnakeDeath(sn) {
 
     // Spawn a death thought before clearing the body.
     spawnThought(sn, THOUGHT_DEATH);
+    for (const survivor of state.snakes) {
+        if (survivor.id !== sn.id && !survivor.respawning && survivor.body.length) {
+            spawnThought(survivor, THOUGHT_SAD);
+        }
+    }
 
     // Mark as respawning; body and food clear immediately.
     sn.respawning = true;
