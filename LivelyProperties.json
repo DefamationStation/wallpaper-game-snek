@@ -1,0 +1,93 @@
+﻿{
+  "sec_game": {
+    "type": "label",
+    "value": "Game""title": "Snek",
+  },
+  "speed": {
+    "type": "slider",
+    "text": "Speed (ticks/sec)",
+    "min": 1,
+    "max": 60,
+    "step": 1,
+    "value": 8,
+    "help": "Ticks per second (1-60). 1 = very slow, 8 = default, 60 = maximum."
+  },
+  "paused": {
+    "type": "checkbox",
+    "text": "Pause",
+    "value": false,
+    "help": "Pause or resume the game"
+  },
+  "sec_colors": {
+    "type": "label",
+    "value": "Colors"
+  },
+  "nightMode": {
+    "type": "checkbox",
+    "text": "Night Mode",
+    "value": false,
+    "help": "Switch between day and night palettes"
+  },
+  "snakeColor": {
+    "type": "color",
+    "text": "Snake Color",
+    "value": "#7ec8a4",
+    "help": "Color of the snake head (body is auto-tinted)"
+  },
+  "foodColor": {
+    "type": "color",
+    "text": "Food Color",
+    "value": "#e8a598",
+    "help": "Color of the food pellet"
+  },
+  "boardColor": {
+    "type": "color",
+    "text": "Board Color",
+    "value": "#e8ead6",
+    "help": "Background board color"
+  },
+  "wallColor": {
+    "type": "color",
+    "text": "Wall Color",
+    "value": "#b49b91",
+    "help": "Color of Conway walls"
+  },
+  "sec_conway": {
+    "type": "label",
+    "value": "Conway Walls"
+  },
+  "conwayMode": {
+    "type": "checkbox",
+    "text": "Conway Walls",
+    "value": false,
+    "help": "Enable Game of Life walls. Complex evolved structures fill the board and regenerate every 2 minutes, forcing the snake to find new paths."
+  },
+  "conwayIntensity": {
+    "type": "slider",
+    "text": "Wall Intensity",
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "value": 5,
+    "help": "Controls dungeon density. Low = few large open rooms. High = many small tight rooms."
+  },
+  "conwayRegenSeconds": {
+    "type": "slider",
+    "text": "Wall Refresh (seconds)",
+    "min": 30,
+    "max": 500,
+    "step": 10,
+    "value": 120,
+    "help": "How often the walls regenerate, in seconds (30-500). Default: 120 (2 min)."
+  },
+  "sec_actions": {
+    "type": "label",
+    "value": "Actions"
+  },
+  "btnRestart": {
+    "type": "button",
+    "text": "Restart Game",
+    "value": "Restart",
+    "help": "Immediately restart the snake game"
+  }
+}

@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Wallpaper</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body data-theme="day">
+
+  <canvas id="gameCanvas"></canvas>
+
+  <button id="settingsBtn" title="Settings" aria-label="Open settings">
+    <svg id="settingsGearSvg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Conway regen countdown ring — updated by renderer.js each frame -->
+      <!-- r=11 → circumference ≈ 69.1; starts hidden, shown only when Conway is on -->
+      <circle id="conwayRegenRingBg" cx="12" cy="12" r="11"
+        stroke="currentColor" stroke-width="1.4" stroke-opacity="0.15"
+        fill="none" visibility="hidden" />
+      <circle id="conwayRegenRing" cx="12" cy="12" r="11"
+        stroke="currentColor" stroke-width="1.4" stroke-opacity="0.6"
+        fill="none" stroke-linecap="round"
+        stroke-dasharray="69.115 69.115" stroke-dashoffset="69.115"
+        transform="rotate(-90 12 12)"
+        visibility="hidden" />
+      <!-- Gear icon -->
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.8" />
+      <path
+        d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+  </button>
+
+  <div id="settingsPanel" role="dialog" aria-label="Game Settings">
+    <div class="panel-header">
+      <span class="panel-title">Settings</span>
+      <button id="closeBtn" aria-label="Close settings">&#x2715;</button>
+    </div>
+    <div class="panel-body">
+
+      <!-- Speed -->
+      <div class="control-row">
+        <span class="control-label">Speed <span style="color:var(--text-secondary);font-size:10px;">tps</span></span>
+        <input type="number" id="speedInput" min="1" max="60" value="8" aria-label="Game speed (ticks per second)">
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Snake color rows — rendered dynamically by ui.js (one row per snake). -->
+      <!-- Each row has id="snakeRow-N", picker id="snakePicker-N", swatch id="snakeSwatch-N". -->
+      <div id="snakeColorRows"></div>
+
+      <!-- Add Snake button -->
+      <div class="control-row">
+        <button class="action-btn" id="addSnakeBtn" style="flex:1;" aria-label="Add a new snake">+ Add Snake</button>
+      </div>
+
+      <!-- Board Color -->
+      <div class="control-row">
+        <span class="control-label">Board</span>
+        <div class="color-btn-wrap">
+          <input type="color" id="boardColorPicker" value="#e8ead6" aria-label="Board color">
+          <div class="color-swatch" id="boardSwatch" style="background:#e8ead6;"></div>
+        </div>
+      </div>
+
+      <!-- Wall Color -->
+      <div class="control-row">
+        <span class="control-label">Walls</span>
+        <div class="color-btn-wrap">
+          <input type="color" id="wallColorPicker" value="#b49b91" aria-label="Wall color">
+          <div class="color-swatch" id="wallSwatch" style="background:#b49b91;"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Night Mode -->
+      <div class="control-row">
+        <span class="control-label">Night Mode</span>
+        <div class="toggle" id="nightToggle" role="switch" aria-checked="false" aria-label="Night mode">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Conway Mode toggle -->
+      <div class="control-row">
+        <span class="control-label">Conway Walls</span>
+        <div class="toggle" id="conwayToggle" role="switch" aria-checked="false" aria-label="Conway Game of Life walls">
+          <div class="toggle-thumb"></div>
+        </div>
+      </div>
+
+      <!-- Conway sub-controls (revealed when mode is on) -->
+      <div id="conwayControls">
+        <div class="control-row">
+          <span class="control-label">Intensity</span>
+          <input type="range" id="conwayIntensitySlider" min="1" max="10" value="5" aria-label="Conway wall intensity">
+        </div>
+        <div class="control-row">
+          <span class="control-label">Refresh <span id="regenLabel"
+              style="color:var(--text-secondary);font-size:10px;">2 min</span></span>
+          <input type="number" id="conwayRegenInput" min="30" max="500" value="120"
+            aria-label="Wall refresh interval in seconds">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Actions -->
+      <div class="button-row">
+        <button class="action-btn" id="pauseBtn">Pause</button>
+        <button class="action-btn" id="restartBtn">Restart</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Load order matters: each file may use globals defined by earlier ones. -->
+  <script src="js/constants.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/grid.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/dungeon.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/loop.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/lively.js"></script>
+
+</body>
+
+</html>

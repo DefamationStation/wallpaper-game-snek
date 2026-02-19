@@ -1,0 +1,405 @@
+/* === RESET === */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    background: #e8ead6;
+    user-select: none;
+}
+
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* === CSS VARIABLES === */
+:root {
+    --panel-bg: rgba(240, 242, 230, 0.72);
+    --text: #3a3a3a;
+    --text-secondary: #7a7a6a;
+    --toggle-track: #c8cab8;
+    --border: rgba(0, 0, 0, 0.08);
+    --btn-bg: rgba(0, 0, 0, 0.06);
+    --btn-hover: rgba(0, 0, 0, 0.12);
+    --input-bg: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="night"] {
+    --panel-bg: rgba(18, 20, 38, 0.82);
+    --text: #d0d0e8;
+    --text-secondary: #8888aa;
+    --toggle-track: #2e2e4a;
+    --border: rgba(255, 255, 255, 0.08);
+    --btn-bg: rgba(255, 255, 255, 0.06);
+    --btn-hover: rgba(255, 255, 255, 0.12);
+    --input-bg: rgba(255, 255, 255, 0.04);
+}
+
+/* === CANVAS === */
+#gameCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    z-index: 0;
+}
+
+/* === SETTINGS BUTTON === */
+#settingsBtn {
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    width: 52px;
+    height: 52px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    opacity: 0.35;
+    transition: opacity 0.35s ease;
+    z-index: 10;
+    padding: 12px;
+    border-radius: 50%;
+}
+
+#settingsBtn:hover {
+    opacity: 0.7;
+}
+
+#settingsBtn svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* === SETTINGS PANEL === */
+#settingsPanel {
+    position: fixed;
+    bottom: 64px;
+    right: 20px;
+    width: 240px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px) scale(0.97);
+    transform-origin: bottom right;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    overflow: hidden;
+}
+
+#settingsPanel.open {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0) scale(1);
+}
+
+/* === PANEL HEADER === */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+#closeBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1;
+    transition: background 0.15s;
+    padding: 0;
+}
+
+#closeBtn:hover {
+    background: var(--btn-hover);
+}
+
+/* === PANEL BODY === */
+.panel-body {
+    padding: 10px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* === SECTION LABEL === */
+.section-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+/* === CONTROL ROWS === */
+.control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.control-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    color: var(--text);
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+/* === RANGE SLIDER === */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--toggle-track);
+    outline: none;
+    cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #7ec8a4;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: transform 0.1s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Conway mode slider thumb — orange accent */
+#conwayIntensitySlider::-webkit-slider-thumb {
+    background: #e8a598;
+}
+
+/* === NUMBER INPUT === */
+input[type="number"] {
+    width: 64px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    text-align: center;
+    outline: none;
+    padding: 0 4px;
+    flex-shrink: 0;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"]:focus {
+    border-color: rgba(126, 200, 164, 0.6);
+    box-shadow: 0 0 0 2px rgba(126, 200, 164, 0.15);
+}
+
+/* === COLOR PICKER === */
+.color-btn-wrap {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.color-btn-wrap input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+    opacity: 0;
+    z-index: 2;
+}
+
+.color-swatch {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: border-color 0.15s;
+}
+
+.color-btn-wrap:hover .color-swatch {
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* === TOGGLE === */
+.toggle {
+    width: 38px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--toggle-track);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    flex-shrink: 0;
+}
+
+.toggle.active {
+    background: #7ec8a4;
+}
+
+.toggle.active-orange {
+    background: #e8a598;
+}
+
+.toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle.active .toggle-thumb,
+.toggle.active-orange .toggle-thumb {
+    transform: translateX(16px);
+}
+
+/* === DIVIDER === */
+.divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+}
+
+/* === ACTION BUTTONS === */
+.button-row {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    flex: 1;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.action-btn:hover {
+    background: var(--btn-hover);
+}
+
+.action-btn:active {
+    transform: scale(0.97);
+}
+
+/* Conway controls — hidden unless mode is on */
+#conwayControls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+}
+
+#conwayControls.visible {
+    max-height: 120px;
+    opacity: 1;
+}
+
+/* === MULTI-SNAKE CONTROLS === */
+
+/* × remove button on each snake row */
+.snake-remove-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.snake-remove-btn:hover {
+    background: rgba(200, 80, 80, 0.15);
+    color: #c85050;
+}
+
+/* Disabled Add Snake button */
+.action-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+}
