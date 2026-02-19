@@ -3,7 +3,7 @@
 An AI-driven Snake game designed to run as an animated live wallpaper via [Lively Wallpaper](https://github.com/rocksdanister/lively).
 <img width="3265" height="1376" alt="image" src="https://github.com/user-attachments/assets/d32e5638-f1e2-464a-b987-92e9cd52e54f" />
 
-See i live here: [Github Pages](https://defamationstation.github.io/wallpaper-game-snek/)
+See it live here: [Github Pages](https://defamationstation.github.io/wallpaper-game-snek/)
 
 ## Features
 
