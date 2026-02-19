@@ -71,6 +71,7 @@ function spawnThought(sn, pool, lifetime, opts) {
                 t.lifetime = ttl;
                 t.tint = tint || null;
                 t.shadowTint = shadowTint;
+                // Re-pick emoji only when the source pool changes.
                 if (pool && pool.length && t.poolSig !== poolSig) {
                     t.emoji = pool[Math.floor(Math.random() * pool.length)];
                 }
@@ -247,16 +248,18 @@ function gameTickForSnake(sn) {
     // ---- Behavior state visual indicators ----
     // Spawn persistent colored bubbles for active behavior states; clear when state ends.
     const _bState = sn._behaviorState;
+    // Stealing mode can tick slower than kill/fear chase mode; keep its bubble alive longer.
+    const behaviorTtlMs = _bState === 'stealing' ? 1300 : 900;
     if (_bState && BEHAVIOR_TINTS[_bState]) {
         sn._behaviorVisualState = _bState;
         sn._behaviorVisualUntilMs = now + 500;
-        spawnThought(sn, BEHAVIOR_EMOJIS[_bState] || ['❓'], 900, {
+        spawnThought(sn, BEHAVIOR_EMOJIS[_bState] || ['❓'], behaviorTtlMs, {
             tint: BEHAVIOR_TINTS[_bState],
             tag: 'behavior',
         });
     } else if (sn._behaviorVisualState && now <= sn._behaviorVisualUntilMs) {
         const vis = sn._behaviorVisualState;
-        spawnThought(sn, BEHAVIOR_EMOJIS[vis] || ['❓'], 900, {
+        spawnThought(sn, BEHAVIOR_EMOJIS[vis] || ['❓'], behaviorTtlMs, {
             tint: BEHAVIOR_TINTS[vis],
             tag: 'behavior',
         });
@@ -643,3 +646,4 @@ function initGame() {
     // Rebuild color picker rows for the (now single-snake) roster.
     if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
 }
+

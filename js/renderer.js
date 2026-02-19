@@ -88,13 +88,14 @@ function drawThoughts(sn, nowMs) {
     if (!write) return;
 
     // Keep behavior bubble anchored nearest the head to avoid apparent flicker.
-    for (let stackIndex = 0; stackIndex < write; stackIndex++) {
-        let idx = stackIndex;
-        if (behaviorIdx !== -1) {
-            if (stackIndex === 0) idx = behaviorIdx;
-            else if (stackIndex <= behaviorIdx) idx = stackIndex - 1;
-        }
-        const t = sn.thoughts[idx];
+    // Smoothly interpolate each bubble toward its target stack slot to avoid jumps.
+    const renderOrder = [];
+    if (behaviorIdx !== -1) renderOrder.push(behaviorIdx);
+    for (let i = 0; i < write; i++) {
+        if (i !== behaviorIdx) renderOrder.push(i);
+    }
+    for (let stackIndex = 0; stackIndex < renderOrder.length; stackIndex++) {
+        const t = sn.thoughts[renderOrder[stackIndex]];
         const age = nowMs - t.born;
         const progress = age / t.lifetime;
         const fadeStart = 0.75;
@@ -120,7 +121,11 @@ function drawThoughts(sn, nowMs) {
         const tailH = 6;
         const r = 8;
         const bx = cx - bubbleW / 2;
-        const stackOffset = stackIndex * (bubbleH + 4);
+        const targetStackPos = stackIndex;
+        if (!Number.isFinite(t._stackPos)) t._stackPos = targetStackPos;
+        t._stackPos += (targetStackPos - t._stackPos) * 0.28;
+        if (Math.abs(targetStackPos - t._stackPos) < 0.001) t._stackPos = targetStackPos;
+        const stackOffset = t._stackPos * (bubbleH + 4);
         const by = cy - bubbleH - tailH - CELL_SIZE * 0.2 - stackOffset;
 
         ctx.save();
