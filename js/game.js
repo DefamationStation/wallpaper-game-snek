@@ -12,9 +12,24 @@ const THOUGHT_TIGHT = ['😰', '😬'];
 const THOUGHT_DEATH = ['💥', '💀'];
 const THOUGHT_SAD = ['😢', '😭'];
 const THOUGHT_GREET = ['👋', '🫂'];
+const SNEK_NAME_POOL = [
+    'Snekboi', 'Snekgirl', 'Noodlebro', 'Noodlette', 'Sir Hiss', 'Lady Loop',
+    'Wiggles', 'Boop Snek', 'Cuddles', 'Slinky', 'Hissy Elliott', 'Snakira',
+    'Snek Diesel', 'Mamba Mia', 'Noodle Queen', 'Noodle King', 'Coily Ray',
+    'Slither Swift', 'Lil Hiss', 'Biscuit Snek', 'Princess Scales', 'Duke Danger',
+    'Miss Wiggle', 'Captain Noodle', 'Hiss Hemsworth', 'Queen Boop',
+    'Snekoncé', 'Cha Cha Coil', 'Boba Snek', 'Sushi Snek', 'Ziggy', 'Mochi',
+    'Pickles', 'Pumpkin', 'Nova', 'Echo', 'Milo', 'Luna', 'Ruby', 'Jasper'
+];
 
 // Cooldown per snake pair (keyed by sorted id pair) to avoid spamming greetings.
 const _greetCooldowns = {};
+
+function pickRandomSnekName(excludeSet) {
+    const available = SNEK_NAME_POOL.filter(n => !excludeSet.has(n));
+    const pool = available.length ? available : SNEK_NAME_POOL;
+    return pool[Math.floor(Math.random() * pool.length)];
+}
 
 // Spawn a chat-bubble thought above the snake's head.
 // The thought follows the snake's head for its lifetime.
@@ -31,13 +46,14 @@ function spawnThought(sn, pool, lifetime) {
 
 // Factory for a fresh snake object. id: integer identifier (0 = primary).
 // colorHead: optional hex string; falls back to SNAKE_COLORS[theme][id] or palette default.
-function makeSnake(id, body, colorHead) {
+function makeSnake(id, body, colorHead, displayName) {
     const theme = state.theme || 'day';
     const defaultColor = (SNAKE_COLORS[theme] && SNAKE_COLORS[theme][id])
         || PALETTES[theme].snakeHead;
     const head = colorHead || defaultColor;
     return {
         id,
+        displayName,
         body,
         food: null,
         nextDir: { x: 1, y: 0 },
@@ -264,7 +280,9 @@ function addSnake() {
         || SNAKE_COLORS.day[newId % SNAKE_COLORS.day.length];
     const startBody = findRespawnPosition();
     if (!startBody) return;     // no room
-    const newSn = makeSnake(newId, startBody, color);
+    const usedNames = new Set(state.snakes.map(s => s.displayName).filter(Boolean));
+    const newName = pickRandomSnekName(usedNames);
+    const newSn = makeSnake(newId, startBody, color, newName);
     state.snakes.push(newSn);
     placeFood(newSn);
     if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
@@ -313,7 +331,7 @@ function initGame() {
     if (state.cols < 1 || state.rows < 1) {
         const prev0 = state.snakes[0];
         const c0 = prev0 && prev0.userCustomized ? prev0.colorHead : null;
-        state.snakes = [makeSnake(0, [], c0)];
+        state.snakes = [makeSnake(0, [], c0, pickRandomSnekName(new Set()))];
         if (prev0 && prev0.userCustomized) state.snakes[0].userCustomized = true;
         state.status = 'paused';
         if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
@@ -329,7 +347,7 @@ function initGame() {
     // Preserve user-customized snake 0 color across restarts; reset to single snake.
     const prevSnake = state.snakes[0];
     const carryColor = prevSnake && prevSnake.userCustomized ? prevSnake.colorHead : null;
-    state.snakes = [makeSnake(0, body, carryColor)];
+    state.snakes = [makeSnake(0, body, carryColor, pickRandomSnekName(new Set()))];
     if (prevSnake && prevSnake.userCustomized) state.snakes[0].userCustomized = true;
     state.status = 'running';
 

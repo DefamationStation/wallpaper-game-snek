@@ -102,7 +102,7 @@ function rebuildSnakeColorRows() {
     const showRemove = state.snakes.length > 1;
 
     state.snakes.forEach((sn, i) => {
-        const label = state.snakes.length > 1 ? 'Snake ' + (i + 1) : 'Snake';
+        const label = sn.displayName || ('Snek ' + (i + 1));
 
         const row = document.createElement('div');
         row.className = 'control-row';

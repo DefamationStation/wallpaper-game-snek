@@ -19,12 +19,12 @@ const WANDER_MAX_TRIMS = 9;         // total tail segments lost per wander cycle
 const WANDER_SPEED_DIVISOR = 2;     // wander tick rate = base tickMs × this
 
 // ---- Multi-snake ----
-const MAX_SNAKES = 6;
+const MAX_SNAKES = 10;
 const SNAKE_RESPAWN_DELAY_MS = 3000;   // ms before a dead non-last snake reappears
 
-// Default head colors for snake slots 0-5, day and night variants.
+// Default head colors for snake slots 0-9, day and night variants.
 // Index 0 matches PALETTES.day.snakeHead / PALETTES.night.snakeHead exactly.
 const SNAKE_COLORS = {
-    day:   ['#7ec8a4', '#c87e7e', '#7e9ac8', '#c8b97e', '#b07ec8', '#c8a07e'],
-    night: ['#5fa882', '#a85f5f', '#5f7ea8', '#a89d5f', '#8e5fa8', '#a8835f'],
+    day:   ['#7ec8a4', '#c87e7e', '#7e9ac8', '#c8b97e', '#b07ec8', '#c8a07e', '#7ec8c1', '#c87eb6', '#8fc87e', '#7e8ec8'],
+    night: ['#5fa882', '#a85f5f', '#5f7ea8', '#a89d5f', '#8e5fa8', '#a8835f', '#5fa8a1', '#a85f92', '#72a85f', '#5f6ea8'],
 };
