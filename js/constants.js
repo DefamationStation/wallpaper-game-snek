@@ -6,7 +6,7 @@
 const CELL_SIZE = 20;
 const DEFAULT_TPS = 4;       // ticks per second at startup
 const MIN_TPS = 1;           // slowest: 1 tick/sec
-const MAX_TPS = 60;          // fastest: 60 ticks/sec (matches monitor refresh)
+const MAX_TPS = 20;          // fastest: 60 ticks/sec (matches monitor refresh)
 const RESTART_DELAY = 10;    // seconds before auto-restart after game over
 const CONWAY_FADE_MS = 3_000; // wall crossfade duration in ms
 const CONWAY_CLEAR_R = 8;    // cell radius kept clear around snake start
@@ -40,7 +40,7 @@ const PERSONALITY_META = {
     lazy: { label: 'Lazy', emoji: '😴', safetyMargin: 4, wanderSatiety: 5, wanderTrims: 4, speedMult: 1.2 },
     greedy: { label: 'Greedy', emoji: '🤑', safetyMargin: 2, wanderSatiety: Infinity, wanderTrims: 0, speedMult: 1.0 },
 };
-const GREEDY_DECAY_INTERVAL_MS = 10_000; // greedy loses 1 segment every 10s
+const GREEDY_DECAY_INTERVAL_MS = 20_000; // greedy loses 1 segment every 20s
 const GREEDY_MIN_LENGTH = 3;             // never decays below this length
 const GREEDY_STEAL_TRIGGER_CHANCE = 0.3; // chance to enter steal mode after a greedy snake eats
 const AGGRESSIVE_KILL_RANGE = 5;         // Manhattan distance from food to trigger kill mode
