@@ -2,7 +2,7 @@
   "name": "wallpaper-game-snek",
   "private": true,
   "scripts": {
-    "build": "node tools/build-site.mjs . _site local-build",
+    "build": "node tools/build-site.mjs . _site",
     "test": "node --test"
   }
 }

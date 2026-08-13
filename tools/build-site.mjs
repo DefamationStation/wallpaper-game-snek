@@ -132,8 +132,16 @@ export async function buildSite(sourceDirectory, destinationDirectory, version) 
     return { fileCount: files.length, version };
 }
 
+export function resolveBuildVersion(explicitVersion, environment = process.env) {
+    return explicitVersion ||
+        environment.CF_PAGES_COMMIT_SHA ||
+        environment.GITHUB_SHA ||
+        'local-build';
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-    const [, , sourceDirectory = '.', destinationDirectory = '_site', version] = process.argv;
+    const [, , sourceDirectory = '.', destinationDirectory = '_site', explicitVersion] = process.argv;
+    const version = resolveBuildVersion(explicitVersion);
     const result = await buildSite(sourceDirectory, destinationDirectory, version);
     console.log(`Built ${result.fileCount} files with cache version ${result.version}.`);
 }

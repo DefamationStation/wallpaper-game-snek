@@ -40,3 +40,19 @@ test('the site builder versions current and future local files automatically', a
     assert.match(js, /media\/data\.json\?v=commit123/);
     assert.equal(await fs.readFile(path.join(output, 'future', 'media', 'new.png'), 'utf8'), 'one');
 });
+
+test('the site builder uses the Cloudflare commit for each deployment', async () => {
+    const { resolveBuildVersion } = await import('../tools/build-site.mjs');
+
+    assert.equal(resolveBuildVersion(undefined, {
+        CF_PAGES_COMMIT_SHA: 'cloudflare123',
+        GITHUB_SHA: 'github456',
+    }), 'cloudflare123');
+    assert.equal(resolveBuildVersion(undefined, {
+        GITHUB_SHA: 'github456',
+    }), 'github456');
+    assert.equal(resolveBuildVersion(undefined, {}), 'local-build');
+    assert.equal(resolveBuildVersion('manual789', {
+        CF_PAGES_COMMIT_SHA: 'cloudflare123',
+    }), 'manual789');
+});
