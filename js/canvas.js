@@ -31,6 +31,6 @@ function resizeCanvas() {
 // initGame is defined later in game.js; the event fires well after all scripts load.
 window.addEventListener('resize', () => {
     resizeCanvas();
-    initGame();
+    if (typeof initGame === 'function') initGame();
 });
 

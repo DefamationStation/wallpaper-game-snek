@@ -8,6 +8,7 @@ const vm = require('node:vm');
 
 function loadCanvas(reserveTaskbarSpace) {
     const canvas = { style: {}, getContext: () => ({}) };
+    let resizeHandler = null;
     const context = vm.createContext({
         CELL_SIZE: 20,
         state: { cols: 0, rows: 0, reserveTaskbarSpace },
@@ -15,12 +16,14 @@ function loadCanvas(reserveTaskbarSpace) {
         window: {
             innerWidth: 1200,
             innerHeight: 800,
-            addEventListener() {},
+            addEventListener(event, handler) {
+                if (event === 'resize') resizeHandler = handler;
+            },
         },
     });
     const canvasPath = path.join(__dirname, '..', 'js', 'canvas.js');
     vm.runInContext(fs.readFileSync(canvasPath, 'utf8'), context, { filename: canvasPath });
-    return { canvas, context };
+    return { canvas, context, resizeHandler };
 }
 
 test('taskbar space is disabled by default and uses the full viewport', () => {
@@ -31,6 +34,13 @@ test('taskbar space is disabled by default and uses the full viewport', () => {
     assert.equal(context.getTaskbarInset(), 0);
     assert.equal(canvas.height, 800);
     assert.equal(canvas.style.height, '800px');
+});
+
+test('an early browser resize does not require the game script', () => {
+    const { canvas, resizeHandler } = loadCanvas(false);
+
+    assert.doesNotThrow(() => resizeHandler());
+    assert.equal(canvas.height, 800);
 });
 
 test('enabled taskbar space always reserves a fixed 48 pixels', () => {
