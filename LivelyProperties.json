@@ -23,7 +23,7 @@
     "type": "checkbox",
     "text": "Reserve Taskbar Space",
     "value": false,
-    "help": "Leave an empty area above the Windows taskbar. Off uses the full screen."
+    "help": "Reserve 48 pixels above the Windows taskbar. Off uses the full screen."
   },
   "sec_colors": {
     "type": "label",

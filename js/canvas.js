@@ -5,18 +5,14 @@
 // ============================================================
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const TASKBAR_RESERVE_PX = 48;
 
 // Offscreen canvas cache for stable (fully-faded) Conway wall renders.
 // Invalidated on crossfade start, theme change, or window resize.
 const wallCache = { oc: null, dirty: true, theme: null, fade: null };
 
 function getTaskbarInset() {
-    if (!state.reserveTaskbarSpace) return 0;
-    return Math.max(
-        0,
-        window.innerHeight - window.screen.availHeight,
-        window.screen.height - window.screen.availHeight
-    );
+    return state.reserveTaskbarSpace ? TASKBAR_RESERVE_PX : 0;
 }
 
 function resizeCanvas() {

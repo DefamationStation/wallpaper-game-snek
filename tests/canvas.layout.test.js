@@ -15,7 +15,6 @@ function loadCanvas(reserveTaskbarSpace) {
         window: {
             innerWidth: 1200,
             innerHeight: 800,
-            screen: { height: 1080, availHeight: 1040 },
             addEventListener() {},
         },
     });
@@ -34,12 +33,12 @@ test('taskbar space is disabled by default and uses the full viewport', () => {
     assert.equal(canvas.style.height, '800px');
 });
 
-test('enabled taskbar space reduces the canvas height', () => {
+test('enabled taskbar space always reserves a fixed 48 pixels', () => {
     const { canvas, context } = loadCanvas(true);
 
     context.resizeCanvas();
 
-    assert.equal(context.getTaskbarInset(), 40);
-    assert.equal(canvas.height, 760);
-    assert.equal(canvas.style.height, '760px');
+    assert.equal(context.getTaskbarInset(), 48);
+    assert.equal(canvas.height, 752);
+    assert.equal(canvas.style.height, '752px');
 });
