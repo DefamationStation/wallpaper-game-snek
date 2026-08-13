@@ -1,0 +1,7 @@
+{
+  "name": "wallpaper-game-snek",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
