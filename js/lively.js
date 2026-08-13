@@ -27,6 +27,10 @@ window._livelyBridge = {
         }
     },
 
+    setReserveTaskbarSpace(val) {
+        applyReserveTaskbarSpace(!!val, true);
+    },
+
     setNightMode(val) {
         const goNight = !!val;
         if ((goNight && state.theme === 'night') || (!goNight && state.theme === 'day')) return;
@@ -159,6 +163,7 @@ function livelyPropertyListener(name, val) {
     switch (name) {
         case 'speed': b.setSpeed(val); break;
         case 'paused': b.setPaused(val); break;
+        case 'reserveTaskbarSpace': b.setReserveTaskbarSpace(val); break;
         case 'nightMode': b.setNightMode(val); break;
         case 'snakeColor': b.setSnakeColor(val); break;
         case 'boardColor': b.setBoardColor(val); break;

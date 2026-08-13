@@ -19,6 +19,12 @@
     "value": false,
     "help": "Pause or resume the game"
   },
+  "reserveTaskbarSpace": {
+    "type": "checkbox",
+    "text": "Reserve Taskbar Space",
+    "value": false,
+    "help": "Leave an empty area above the Windows taskbar. Off uses the full screen."
+  },
   "sec_colors": {
     "type": "label",
     "value": "Colors"

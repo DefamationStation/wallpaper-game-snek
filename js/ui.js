@@ -11,6 +11,7 @@ const pauseBtn      = document.getElementById('pauseBtn');
 const restartBtn    = document.getElementById('restartBtn');
 const speedInput    = document.getElementById('speedInput');
 const smoothToggle  = document.getElementById('smoothToggle');
+const taskbarSpaceToggle = document.getElementById('taskbarSpaceToggle');
 const nightToggle   = document.getElementById('nightToggle');
 const boardPicker   = document.getElementById('boardColorPicker');
 const wallPicker    = document.getElementById('wallColorPicker');
@@ -50,17 +51,23 @@ document.addEventListener('click', (e) => {
 });
 
 // ---- Taskbar offset ----
-// Keep the settings button and panel above the Windows taskbar.
+// Keep the settings controls above the Windows taskbar only when requested.
 function applyTaskbarOffset() {
-    const taskbarH = Math.max(
-        0,
-        window.innerHeight - window.screen.availHeight,
-        window.screen.height - window.screen.availHeight
-    );
+    const taskbarH = getTaskbarInset();
     window.uiInsetBottom = taskbarH;
     settingsBtn.style.bottom = (20 + taskbarH) + 'px';
     settingsPanel.style.bottom = (64 + taskbarH) + 'px';
 }
+
+function applyReserveTaskbarSpace(enabled, restartGame) {
+    state.reserveTaskbarSpace = !!enabled;
+    taskbarSpaceToggle.classList.toggle('active', state.reserveTaskbarSpace);
+    taskbarSpaceToggle.setAttribute('aria-checked', String(state.reserveTaskbarSpace));
+    applyTaskbarOffset();
+    resizeCanvas();
+    if (restartGame !== false) initGame();
+}
+
 applyTaskbarOffset();
 window.addEventListener('resize', applyTaskbarOffset);
 
@@ -80,6 +87,11 @@ smoothToggle.addEventListener('click', () => {
     state.smoothMovement = !state.smoothMovement;
     smoothToggle.classList.toggle('active', state.smoothMovement);
     smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+});
+
+// ---- Optional Windows taskbar space ----
+taskbarSpaceToggle.addEventListener('click', () => {
+    applyReserveTaskbarSpace(!state.reserveTaskbarSpace, true);
 });
 
 // ---- Pause / Resume ----
@@ -273,6 +285,7 @@ function collectThemeSetup() {
         theme: state.theme,
         tickMs: state.tickMs,
         smoothMovement: state.smoothMovement,
+        reserveTaskbarSpace: state.reserveTaskbarSpace,
         userCustomized: {
             board: !!state.userCustomized.board,
             wall: !!state.userCustomized.wall,
@@ -342,6 +355,8 @@ function loadThemeSlot(slot) {
     state.smoothMovement = setup.smoothMovement !== false;
     smoothToggle.classList.toggle('active', state.smoothMovement);
     smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+
+    applyReserveTaskbarSpace(setup.reserveTaskbarSpace === true, false);
 
     if (setup.userCustomized) {
         state.userCustomized.board = !!setup.userCustomized.board;
@@ -545,6 +560,8 @@ initGame();
 
 smoothToggle.classList.toggle('active', state.smoothMovement);
 smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
+taskbarSpaceToggle.classList.toggle('active', state.reserveTaskbarSpace);
+taskbarSpaceToggle.setAttribute('aria-checked', String(state.reserveTaskbarSpace));
 
 // Build per-snake color rows after initGame() has populated state.snakes.
 rebuildSnakeColorRows();

@@ -20,6 +20,7 @@ const state = {
     restartCountdown: 0,
     theme: 'day',               // 'day' | 'night'
     smoothMovement: true,       // interpolate snake rendering between ticks
+    reserveTaskbarSpace: false, // false = use the full browser viewport
     userCustomized: { board: false, wall: false },
     colors: {
         // Snake head/body colors live on each snake object (sn.colorHead, sn.colorBody).

@@ -10,14 +10,18 @@ const ctx = canvas.getContext('2d');
 // Invalidated on crossfade start, theme change, or window resize.
 const wallCache = { oc: null, dirty: true, theme: null, fade: null };
 
-function resizeCanvas() {
-    // Match current viewport and keep content above taskbar inset.
-    const insetBottom = Math.max(
+function getTaskbarInset() {
+    if (!state.reserveTaskbarSpace) return 0;
+    return Math.max(
         0,
-        window.uiInsetBottom || 0,
         window.innerHeight - window.screen.availHeight,
         window.screen.height - window.screen.availHeight
     );
+}
+
+function resizeCanvas() {
+    // Use the full viewport unless the optional taskbar space is enabled.
+    const insetBottom = getTaskbarInset();
     canvas.width = window.innerWidth;
     canvas.height = Math.max(1, window.innerHeight - insetBottom);
     canvas.style.width = canvas.width + 'px';
