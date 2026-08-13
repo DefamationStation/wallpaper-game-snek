@@ -31,10 +31,13 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Build versioned site
+        run: node tools/build-site.mjs . _site "$GITHUB_SHA"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
