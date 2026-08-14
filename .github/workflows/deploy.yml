@@ -1,29 +1,83 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - Verify
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: read
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: pages-production
   cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch != 'main')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
+      - name: Wait for the verified pull request to merge
+        id: deploy-source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "deploy_ref=main" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for attempt in {1..120}; do
+            pr_data="$(gh pr list \
+              --repo "$GH_REPO" \
+              --base main \
+              --head "$HEAD_BRANCH" \
+              --state all \
+              --json state,headRefOid,mergeCommit \
+              --jq '.[0] // {}')"
+            pr_state="$(jq -r '.state // empty' <<< "$pr_data")"
+            pr_head="$(jq -r '.headRefOid // empty' <<< "$pr_data")"
+
+            if [[ "$pr_state" == "MERGED" && "$pr_head" == "$HEAD_SHA" ]]; then
+              merge_sha="$(jq -r '.mergeCommit.oid // empty' <<< "$pr_data")"
+              if [[ -n "$merge_sha" ]]; then
+                echo "deploy_ref=$merge_sha" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+
+            if [[ "$pr_state" == "CLOSED" ]]; then
+              echo "The verified pull request closed without a merge." >&2
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "The verified pull request did not merge within ten minutes." >&2
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.deploy-source.outputs.deploy_ref }}
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -32,7 +86,7 @@ jobs:
         run: npm test
 
       - name: Build versioned site
-        run: node tools/build-site.mjs . _site "$GITHUB_SHA"
+        run: node tools/build-site.mjs . _site "$(git rev-parse HEAD)"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
