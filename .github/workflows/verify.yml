@@ -1,0 +1,33 @@
+name: Verify
+
+on:
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Snek
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build versioned site
+        run: node tools/build-site.mjs . _site "$GITHUB_SHA"
+
+      - name: Check patch formatting
+        run: git diff --check origin/main...HEAD
