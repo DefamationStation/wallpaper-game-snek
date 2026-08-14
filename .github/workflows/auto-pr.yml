@@ -1,0 +1,88 @@
+name: Open and merge verified changes
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-change:
+    name: Open branch pull request
+    if: github.event_name == 'push' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Open pull request and enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pr_number="$(gh pr list \
+            --repo "$GH_REPO" \
+            --base main \
+            --head "$HEAD_BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -z "$pr_number" ]]; then
+            title="${HEAD_BRANCH##*/}"
+            title="${title//-/ }"
+            pr_url="$(gh pr create \
+              --repo "$GH_REPO" \
+              --base main \
+              --head "$HEAD_BRANCH" \
+              --title "$title" \
+              --body 'Created automatically. The required Verify check must pass before this change can merge.')"
+            pr_number="${pr_url##*/}"
+          fi
+
+          gh pr merge "$pr_number" \
+            --repo "$GH_REPO" \
+            --auto \
+            --squash \
+            --match-head-commit "$HEAD_SHA"
+
+  dependabot-change:
+    name: Enable verified Dependabot auto-merge
+    if: github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GH_REPO" \
+            --auto \
+            --squash \
+            --match-head-commit "$HEAD_SHA"
