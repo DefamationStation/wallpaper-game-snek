@@ -60,7 +60,7 @@
   "conwayMode": {
     "type": "checkbox",
     "text": "Procedural Walls",
-    "value": false,
+    "value": true,
     "help": "Enable procedural maze-like walls. Organic structures fill the board and regenerate every 2 minutes, forcing the snake to find new paths."
   },
   "conwayIntensity": {

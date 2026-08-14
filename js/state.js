@@ -35,7 +35,7 @@ const state = {
 
     // ---- Conway dungeon wall state ----
     conway: {
-        enabled: false,
+        enabled: true,
         intensity: 5,         // 1â€“10: controls wall density and room size
         regenMs: 120_000,     // user-configurable refresh interval (ms)
         wallAlpha: null,      // legacy field (no longer updated per-frame)

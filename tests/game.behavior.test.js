@@ -21,6 +21,42 @@ function loadGame() {
     };
 }
 
+function loadInitialGame() {
+    let conwayInitCalls = 0;
+    const context = vm.createContext({
+        console,
+        performance: { now: () => 10_000 },
+        clearInterval() {},
+        window: {},
+        conwayInit() {
+            conwayInitCalls++;
+        },
+        conwayCurrentSolidGrid() {
+            return null;
+        },
+    });
+    for (const relativePath of [
+        'js/constants.js',
+        'js/utils.js',
+        'js/state.js',
+        'js/grid.js',
+        'js/game.js',
+    ]) {
+        const filePath = path.join(__dirname, '..', relativePath);
+        vm.runInContext(fs.readFileSync(filePath, 'utf8'), context, { filename: filePath });
+    }
+    vm.runInContext(`
+        state.cols = 40;
+        state.rows = 30;
+        globalThis.getTestState = () => state;
+    `, context);
+    return {
+        context,
+        state: context.getTestState(),
+        getConwayInitCalls: () => conwayInitCalls,
+    };
+}
+
 function makeSnake(id, behaviorState = null) {
     return {
         id,
@@ -44,6 +80,20 @@ function enableMoveResolution(context, cols, rows, snakes) {
         return occupied;
     };
 }
+
+test('the default game enables walls and starts without an aggressive snake', () => {
+    const { context, state, getConwayInitCalls } = loadInitialGame();
+
+    context.initGame();
+
+    assert.deepEqual(
+        Array.from(state.snakes, sn => sn.personality),
+        ['cautious', 'explorer', 'lazy', 'greedy']
+    );
+    assert.equal(state.conway.enabled, true);
+    assert.equal(getConwayInitCalls(), 1);
+    assert.equal(vm.runInContext(`PERSONALITIES.includes('aggressive')`, context), true);
+});
 
 test('near snakes share one tagged social thought', () => {
     const { context } = loadGame();

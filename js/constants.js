@@ -33,6 +33,7 @@ const SNAKE_COLORS = {
 
 // ---- Snake personalities ----
 const PERSONALITIES = ['aggressive', 'cautious', 'explorer', 'lazy', 'greedy'];
+const DEFAULT_PERSONALITIES = ['cautious', 'explorer', 'lazy', 'greedy'];
 const PERSONALITY_META = {
     aggressive: { label: 'Aggressive', emoji: '😤', safetyMargin: 1, wanderSatiety: SATIETY_MAX, wanderTrims: WANDER_MAX_TRIMS, speedMult: 1.0 },
     cautious: { label: 'Cautious', emoji: '🫣', safetyMargin: 8, wanderSatiety: SATIETY_MAX, wanderTrims: 5, speedMult: 1.0 },

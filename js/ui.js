@@ -562,6 +562,9 @@ smoothToggle.classList.toggle('active', state.smoothMovement);
 smoothToggle.setAttribute('aria-checked', String(state.smoothMovement));
 taskbarSpaceToggle.classList.toggle('active', state.reserveTaskbarSpace);
 taskbarSpaceToggle.setAttribute('aria-checked', String(state.reserveTaskbarSpace));
+conwayToggle.classList.toggle('active-orange', state.conway.enabled);
+conwayToggle.setAttribute('aria-checked', String(state.conway.enabled));
+conwayControls.classList.toggle('visible', state.conway.enabled);
 
 // Build per-snake color rows after initGame() has populated state.snakes.
 rebuildSnakeColorRows();

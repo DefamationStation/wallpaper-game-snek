@@ -119,7 +119,8 @@ function pickPersonality() {
 
 // Factory for a fresh snake object. id: integer identifier (0 = primary).
 // colorHead: optional hex string; falls back to SNAKE_COLORS[theme][id] or palette default.
-function makeSnake(id, body, colorHead, displayName) {
+// personality: optional fixed personality; new snakes otherwise get a weighted random one.
+function makeSnake(id, body, colorHead, displayName, personality) {
     const theme = state.theme || 'day';
     const palette = SNAKE_COLORS[theme] || [];
     const defaultColor = palette.length
@@ -137,8 +138,8 @@ function makeSnake(id, body, colorHead, displayName) {
         colorHead: head,
         colorBody: lightenHex(head, 0.28),
         userCustomized: false,  // true once the user manually picks a color for this snake
-        // personality (persists across respawns, weighted toward variety)
-        personality: pickPersonality(),
+        // personality (persists across respawns, weighted toward variety when not fixed)
+        personality: PERSONALITIES.includes(personality) ? personality : pickPersonality(),
         // active behavior state (set by AI each tick, used for visual indicators)
         // null = normal, 'killing' = aggressive hunt, 'feared' = being hunted,
         // 'evading' = cautious fleeing, 'stealing' = greedy targeting other food
@@ -718,7 +719,7 @@ function initGame() {
     if (state.cols < 1 || state.rows < 1) {
         const prev0 = state.snakes[0];
         const c0 = prev0 && prev0.userCustomized ? prev0.colorHead : null;
-        state.snakes = [makeSnake(0, [], c0, pickRandomSnekName(new Set()))];
+        state.snakes = [makeSnake(0, [], c0, pickRandomSnekName(new Set()), DEFAULT_PERSONALITIES[0])];
         state.nextSnakeId = 1;
         if (prev0 && prev0.userCustomized) state.snakes[0].userCustomized = true;
         state.status = 'paused';
@@ -732,19 +733,39 @@ function initGame() {
         body.push({ x: cx - i, y: cy });
     }
 
-    // Preserve user-customized snake 0 color across restarts; reset to single snake.
-    const prevSnake = state.snakes[0];
-    const carryColor = prevSnake && prevSnake.userCustomized ? prevSnake.colorHead : null;
-    state.snakes = [makeSnake(0, body, carryColor, pickRandomSnekName(new Set()))];
-    state.nextSnakeId = 1;
-    if (prevSnake && prevSnake.userCustomized) state.snakes[0].userCustomized = true;
+    // Start with one snake for each default personality. Keep customized slot colors on restart.
+    const customizedColors = new Map(state.snakes
+        .filter(sn => sn.userCustomized)
+        .map(sn => [sn.id, sn.colorHead]));
+    const usedNames = new Set();
+    state.snakes = [];
+    state.nextSnakeId = 0;
+
+    function appendDefaultSnake(personality, startBody) {
+        const id = getNextSnakeId();
+        const displayName = pickRandomSnekName(usedNames);
+        usedNames.add(displayName);
+        const carriedColor = customizedColors.get(id) || null;
+        const sn = makeSnake(id, startBody, carriedColor, displayName, personality);
+        sn.userCustomized = customizedColors.has(id);
+        state.snakes.push(sn);
+        return sn;
+    }
+
+    appendDefaultSnake(DEFAULT_PERSONALITIES[0], body);
     state.status = 'running';
 
     if (state.conway.enabled) conwayInit(true);
 
-    placeFood(state.snakes[0]);
+    for (let i = 1; i < DEFAULT_PERSONALITIES.length; i++) {
+        const startBody = findRespawnPosition();
+        if (!startBody) break;
+        appendDefaultSnake(DEFAULT_PERSONALITIES[i], startBody);
+    }
 
-    // Rebuild color picker rows for the (now single-snake) roster.
+    for (const sn of state.snakes) placeFood(sn);
+
+    // Rebuild color picker rows for the default personality roster.
     if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
 }
 
