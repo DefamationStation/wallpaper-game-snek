@@ -41,7 +41,8 @@ jobs:
         run: node tools/build-site.mjs . _site "$GITHUB_SHA"
 
       - name: Build and lint Android app
-        run: bash android/gradlew --no-daemon assembleDebug lintDebug
+        working-directory: android
+        run: bash gradlew --no-daemon assembleDebug lintDebug
 
       - name: Check patch formatting
         run: git diff --check origin/main...HEAD

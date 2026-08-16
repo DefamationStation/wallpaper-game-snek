@@ -124,7 +124,8 @@ jobs:
         run: npm test
 
       - name: Build signed Android APK
-        run: bash android/gradlew --no-daemon assembleRelease lintRelease
+        working-directory: android
+        run: bash gradlew --no-daemon assembleRelease lintRelease
 
       - name: Build versioned site
         run: node tools/build-site.mjs . _site "$(git rev-parse HEAD)"
