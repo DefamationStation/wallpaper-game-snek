@@ -486,3 +486,68 @@ input[type="number"]:focus {
     background: var(--btn-bg);
     font-weight: 600;
 }
+/* Android uses a normal app activity as the settings surface. The live
+   wallpaper and screen saver do not show controls over the animation. */
+body[data-android-host="wallpaper"] #settingsBtn,
+body[data-android-host="wallpaper"] #settingsPanel,
+body[data-android-host="dream"] #settingsBtn,
+body[data-android-host="dream"] #settingsPanel {
+  display: none !important;
+}
+
+#androidPerformanceControls {
+    display: none;
+}
+
+select {
+    width: 126px;
+    padding: 6px 8px;
+    color: var(--text);
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+}
+
+.android-performance-note {
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+body[data-android-host="settings"] #settingsBtn,
+body[data-android-host="settings"] #closeBtn {
+  display: none !important;
+}
+
+body[data-android-host="settings"] #androidPerformanceControls {
+  display: block;
+}
+
+body[data-android-host="settings"] #taskbarSpaceRow {
+  display: none;
+}
+
+body[data-android-host="settings"] #settingsPanel {
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body[data-android-host="settings"] #settingsPanel .panel-header {
+  flex: 0 0 auto;
+}
+
+body[data-android-host="settings"] #settingsPanel .panel-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}

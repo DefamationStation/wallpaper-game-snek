@@ -1,0 +1,65 @@
+plugins {
+    id 'com.android.application'
+}
+
+def releaseStorePath = System.getenv('SNEK_KEYSTORE_PATH')
+def releaseStorePassword = System.getenv('SNEK_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('SNEK_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('SNEK_KEY_PASSWORD')
+def hasReleaseSigning = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword]
+    .every { value -> value != null && !value.isBlank() }
+def ciVersionCode = System.getenv('SNEK_VERSION_CODE')
+def ciVersionName = System.getenv('SNEK_VERSION_NAME')
+
+android {
+    namespace 'dev.defamation.snek'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dev.defamation.snek'
+        minSdk 24
+        targetSdk 36
+        versionCode ciVersionCode ? Integer.parseInt(ciVersionCode) : 2
+        versionName ciVersionName ?: '0.2.0'
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasReleaseSigning) signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDir(layout.buildDirectory.dir('generated/snekAssets').get().asFile)
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register('syncSnekAssets', Copy) {
+    from('../..') {
+        include 'index.html'
+        include 'style.css'
+        include 'js/**'
+    }
+    into(layout.buildDirectory.dir('generated/snekAssets'))
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(tasks.named('syncSnekAssets'))
+}

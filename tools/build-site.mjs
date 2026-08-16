@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 const EXCLUDED_DIRECTORIES = new Set([
     '.git',
     '.github',
+    'android',
     'node_modules',
     'tests',
     'tools',

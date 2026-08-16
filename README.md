@@ -26,6 +26,59 @@ Open `index.html` in any modern browser. A settings gear (⚙) in the corner ope
 1. Add `index.html` as a new wallpaper source in [Lively Wallpaper](https://github.com/rocksdanister/lively).
 2. Use the bundled `LivelyProperties.json` to expose all settings in Lively's property panel (speed, colors, procedural walls, etc.).
 
+### Android
+
+The `android` directory contains an installable Android live-wallpaper app. It
+uses the same HTML, CSS, JavaScript, snake behavior, and procedural walls as the
+browser version. The APK contains the web files and does not need a network
+connection.
+
+The Android app provides:
+
+- A settings activity with the full Snek settings panel and a live preview.
+- A `WallpaperService` for the home screen and supported lock screens.
+- A `DreamService` for Android's charging screen saver.
+- Shared settings that update the wallpaper and screen saver.
+- Lifecycle controls that pause Snek when its surface is not visible.
+- S26 Ultra render presets for HD+, FHD+, and QHD+.
+- Frame-rate choices for 30, 60, 90, and 120 FPS.
+
+FHD+ at 60 FPS is the Android default. It renders 1080 × 2340 on the S26
+Ultra instead of the full 1440 × 3120 surface. HD+ reduces battery and GPU use.
+QHD+ gives maximum detail. The launcher and Android WebView can still limit the
+actual frame rate.
+
+To build a debug APK:
+
+1. Install Android Studio with JDK 17 and the stable Android SDK (API 36).
+2. Open the `android` directory as an Android Studio project.
+3. Build the `app` debug variant, or run `gradlew.bat assembleDebug` from that directory.
+4. Install `android/app/build/outputs/apk/debug/app-debug.apk` on the phone.
+
+Open **Snek Wallpaper** on the phone to change settings or to open Android's
+live-wallpaper and screen-saver selectors. The phone maker decides if one live
+wallpaper can be used on the home screen, lock screen, or both.
+
+### Automatic Android builds
+
+The required **Verify** check builds and lints the Android app for every branch.
+After a verified update reaches `main`, the Pages deployment builds a signed
+release APK and publishes it at:
+
+`https://defamationstation.github.io/wallpaper-game-snek/downloads/snek-latest.apk`
+
+The deployment also uploads the APK as a GitHub Actions artifact. Release
+signing uses these repository secrets:
+
+- `SNEK_ANDROID_KEYSTORE_BASE64`
+- `SNEK_ANDROID_KEYSTORE_PASSWORD`
+- `SNEK_ANDROID_KEY_ALIAS`
+- `SNEK_ANDROID_KEY_PASSWORD`
+
+Android does not let a normal website install an update without confirmation.
+Download the latest APK and approve the update on the phone. The stable signing
+key lets the new APK update the installed app without removing its settings.
+
 ## License
 
 This project is dual-licensed:
