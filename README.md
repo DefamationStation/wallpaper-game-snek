@@ -44,7 +44,7 @@ The Android app provides:
 
 To build a debug APK:
 
-1. Install Android Studio with JDK 17 and the Android 16 SDK (API 36).
+1. Install Android Studio with JDK 17 and the stable Android SDK (API 36).
 2. Open the `android` directory as an Android Studio project.
 3. Build the `app` debug variant, or run `gradlew.bat assembleDebug` from that directory.
 4. Install `android/app/build/outputs/apk/debug/app-debug.apk` on the phone.

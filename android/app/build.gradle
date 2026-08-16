@@ -15,7 +15,7 @@ android {
     }
 
     sourceSets {
-        main.assets.srcDir(layout.buildDirectory.dir('generated/snekAssets'))
+        main.assets.srcDir(layout.buildDirectory.dir('generated/snekAssets').get().asFile)
     }
 
     compileOptions {
