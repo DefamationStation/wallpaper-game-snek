@@ -125,7 +125,7 @@ jobs:
 
       - name: Build signed Android APK
         working-directory: android
-        run: bash gradlew --no-daemon assembleRelease lintRelease
+        run: bash ./gradlew --no-daemon assembleRelease lintRelease
 
       - name: Build versioned site
         run: node tools/build-site.mjs . _site "$(git rev-parse HEAD)"

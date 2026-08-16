@@ -42,7 +42,7 @@ jobs:
 
       - name: Build and lint Android app
         working-directory: android
-        run: bash gradlew --no-daemon assembleDebug lintDebug
+        run: bash ./gradlew --no-daemon assembleDebug lintDebug
 
       - name: Check patch formatting
         run: git diff --check origin/main...HEAD
