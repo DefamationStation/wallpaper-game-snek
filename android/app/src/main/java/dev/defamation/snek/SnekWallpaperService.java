@@ -28,14 +28,17 @@ public final class SnekWallpaperService extends WallpaperService {
         private boolean visible;
         private int surfaceWidth;
         private int surfaceHeight;
-        private int renderShortEdge;
+        private int displayDensityDpi;
 
         @Override
         public void onCreate(SurfaceHolder surfaceHolder) {
             super.onCreate(surfaceHolder);
             setTouchEventsEnabled(false);
             setOffsetNotificationsEnabled(false);
-            renderShortEdge = SnekPreferences.readRenderShortEdge(SnekWallpaperService.this);
+            displayDensityDpi = Math.max(
+                1,
+                getResources().getDisplayMetrics().densityDpi
+            );
             SnekPreferences.get(SnekWallpaperService.this)
                 .registerOnSharedPreferenceChangeListener(this);
         }
@@ -75,11 +78,8 @@ public final class SnekWallpaperService extends WallpaperService {
         private void attachRenderer(Surface surface) {
             if (!surface.isValid()) return;
 
-            int renderWidth = scaledRenderWidth();
-            int renderHeight = scaledRenderHeight();
-
             if (virtualDisplay != null) {
-                virtualDisplay.resize(renderWidth, renderHeight, 160);
+                virtualDisplay.resize(surfaceWidth, surfaceHeight, displayDensityDpi);
                 virtualDisplay.setSurface(visible ? surface : null);
                 return;
             }
@@ -89,9 +89,9 @@ public final class SnekWallpaperService extends WallpaperService {
                 | DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY;
             virtualDisplay = manager.createVirtualDisplay(
                 "Snek live wallpaper",
-                renderWidth,
-                renderHeight,
-                160,
+                surfaceWidth,
+                surfaceHeight,
+                displayDensityDpi,
                 visible ? surface : null,
                 flags
             );
@@ -105,19 +105,6 @@ public final class SnekWallpaperService extends WallpaperService {
             } catch (WindowManager.InvalidDisplayException error) {
                 releaseRenderer();
             }
-        }
-
-        private float renderScale() {
-            int physicalShortEdge = Math.max(1, Math.min(surfaceWidth, surfaceHeight));
-            return Math.min(1f, renderShortEdge / (float) physicalShortEdge);
-        }
-
-        private int scaledRenderWidth() {
-            return Math.max(1, Math.round(surfaceWidth * renderScale()));
-        }
-
-        private int scaledRenderHeight() {
-            return Math.max(1, Math.round(surfaceHeight * renderScale()));
         }
 
         private void releaseRenderer() {
@@ -135,12 +122,6 @@ public final class SnekWallpaperService extends WallpaperService {
         public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
             if (SnekPreferences.KEY_SETTINGS.equals(key)) {
                 String json = preferences.getString(key, "");
-                int nextRenderShortEdge = SnekPreferences.renderShortEdgeFrom(json);
-                if (nextRenderShortEdge != renderShortEdge) {
-                    renderShortEdge = nextRenderShortEdge;
-                    Surface surface = getSurfaceHolder().getSurface();
-                    if (surface.isValid()) attachRenderer(surface);
-                }
                 if (presentation != null) presentation.applySettings(json);
             }
         }

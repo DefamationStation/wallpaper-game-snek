@@ -43,10 +43,12 @@ The Android app provides:
 - S26 Ultra render presets for HD+, FHD+, and QHD+.
 - Frame-rate choices for 30, 60, 90, and 120 FPS.
 
-FHD+ at 60 FPS is the Android default. It renders 1080 × 2340 on the S26
-Ultra instead of the full 1440 × 3120 surface. HD+ reduces battery and GPU use.
-QHD+ gives maximum detail. The launcher and Android WebView can still limit the
-actual frame rate.
+FHD+ at 60 FPS is the Android default. The wallpaper always fills the phone
+surface and uses the same layout size as the HTML page in a phone browser. The
+quality preset changes only the canvas detail. It does not change the tile size
+or leave an unused part of the screen. HD+ reduces canvas work, and QHD+ gives
+maximum detail. The launcher and Android WebView can still limit the actual
+frame rate.
 
 To build a debug APK:
 
