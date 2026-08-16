@@ -9,13 +9,39 @@
 
     const mode = host.slice('android-'.length);
     document.body.setAttribute('data-android-host', mode);
-    window._snekMinRenderIntervalMs = 1000 / 30;
+    const renderSizeSelect = document.getElementById('androidRenderSize');
+    const maxFpsSelect = document.getElementById('androidMaxFps');
+    const DEFAULT_RENDER_SHORT_EDGE = 1080;
+    const DEFAULT_MAX_FPS = 60;
+
+    function allowedNumber(value, allowed, fallback) {
+        const number = Number(value);
+        return allowed.includes(number) ? number : fallback;
+    }
+
+    function applyAndroidPerformance(androidSettings) {
+        const source = androidSettings || {};
+        const renderShortEdge = allowedNumber(source.renderShortEdge, [720, 1080, 1440], DEFAULT_RENDER_SHORT_EDGE);
+        const maxFps = allowedNumber(source.maxFps, [30, 60, 90, 120], DEFAULT_MAX_FPS);
+        renderSizeSelect.value = String(renderShortEdge);
+        maxFpsSelect.value = String(maxFps);
+        window._snekMinRenderIntervalMs = 1000 / maxFps;
+    }
+
+    applyAndroidPerformance(null);
+    maxFpsSelect.addEventListener('change', () => {
+        applyAndroidPerformance({
+            renderShortEdge: renderSizeSelect.value,
+            maxFps: maxFpsSelect.value,
+        });
+    });
 
     function applySavedSettings(raw) {
         if (!raw) return;
         try {
             const parsed = JSON.parse(raw);
             if (!parsed || !Array.isArray(parsed.snakes) || !parsed.snakes.length) return;
+            applyAndroidPerformance(parsed.android);
             localStorage.setItem('snek.themeSlot.android', JSON.stringify(parsed));
             loadThemeSlot('android');
             // Windows taskbar space is not valid on Android.
@@ -56,6 +82,10 @@
             try {
                 const setup = collectThemeSetup();
                 setup.reserveTaskbarSpace = false;
+                setup.android = {
+                    renderShortEdge: allowedNumber(renderSizeSelect.value, [720, 1080, 1440], DEFAULT_RENDER_SHORT_EDGE),
+                    maxFps: allowedNumber(maxFpsSelect.value, [30, 60, 90, 120], DEFAULT_MAX_FPS),
+                };
                 window.SnekAndroid.saveSettings(JSON.stringify(setup));
             } catch (_) {
                 // A failed save must not stop the preview.

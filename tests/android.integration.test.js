@@ -44,10 +44,36 @@ test('wallpaper and dream hosts hide the in-page settings controls', () => {
     assert.match(css, /display: none !important/);
 });
 
-test('Android limits visible rendering and can pause hidden WebViews', () => {
+test('Android offers S26 Ultra render sizes and frame rates', () => {
+    const html = read('index.html');
     const host = read('js/android-host.js');
     const loop = read('js/loop.js');
-    assert.match(host, /_snekMinRenderIntervalMs = 1000 \/ 30/);
+    assert.match(html, /id="androidRenderSize"/);
+    assert.match(html, /value="720"/);
+    assert.match(html, /value="1080" selected/);
+    assert.match(html, /value="1440"/);
+    assert.match(html, /value="120">120 FPS/);
+    assert.match(host, /DEFAULT_RENDER_SHORT_EDGE = 1080/);
+    assert.match(host, /DEFAULT_MAX_FPS = 60/);
     assert.match(host, /snekAndroidSetRunning/);
     assert.match(loop, /shouldRender/);
+});
+
+test('the Android wallpaper scales its virtual display from saved settings', () => {
+    const preferences = read('android/app/src/main/java/dev/defamation/snek/SnekPreferences.java');
+    const wallpaper = read('android/app/src/main/java/dev/defamation/snek/SnekWallpaperService.java');
+    assert.match(preferences, /DEFAULT_RENDER_SHORT_EDGE = 1080/);
+    assert.match(preferences, /value == 720 \|\| value == 1080 \|\| value == 1440/);
+    assert.match(wallpaper, /virtualDisplay\.resize\(renderWidth, renderHeight, 160\)/);
+    assert.match(wallpaper, /nextRenderShortEdge != renderShortEdge/);
+});
+
+test('verified main updates build and publish a signed APK', () => {
+    const verify = read('.github/workflows/verify.yml');
+    const deploy = read('.github/workflows/deploy.yml');
+    assert.match(verify, /assembleDebug lintDebug/);
+    assert.match(deploy, /assembleRelease lintRelease/);
+    assert.match(deploy, /SNEK_ANDROID_KEYSTORE_BASE64/);
+    assert.match(deploy, /_site\/downloads\/snek-latest\.apk/);
+    assert.match(deploy, /actions\/upload-artifact@043fb46/);
 });

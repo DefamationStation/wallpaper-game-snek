@@ -495,9 +495,37 @@ body[data-android-host="dream"] #settingsPanel {
   display: none !important;
 }
 
+#androidPerformanceControls {
+    display: none;
+}
+
+select {
+    width: 126px;
+    padding: 6px 8px;
+    color: var(--text);
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+}
+
+.android-performance-note {
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
 body[data-android-host="settings"] #settingsBtn,
 body[data-android-host="settings"] #closeBtn {
   display: none !important;
+}
+
+body[data-android-host="settings"] #androidPerformanceControls {
+  display: block;
+}
+
+body[data-android-host="settings"] #taskbarSpaceRow {
+  display: none;
 }
 
 body[data-android-host="settings"] #settingsPanel {

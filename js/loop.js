@@ -11,7 +11,7 @@ function gameLoop(ts) {
     // Android wallpapers use a 30 fps render limit to reduce battery and heat.
     // Game ticks still run at their configured rate.
     const minRenderIntervalMs = Number(window._snekMinRenderIntervalMs) || 0;
-    const shouldRender = minRenderIntervalMs <= 0 || ts - lastRenderFrameMs >= minRenderIntervalMs;
+    const shouldRender = minRenderIntervalMs <= 0 || ts - lastRenderFrameMs >= minRenderIntervalMs - 0.5;
 
     // Conway fade follows the visible render rate.
     if (shouldRender && state.conway.enabled) conwayUpdateFade(ts);

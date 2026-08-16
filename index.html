@@ -56,7 +56,30 @@
         </div>
       </div>
 
-      <div class="control-row">
+      <div id="androidPerformanceControls">
+        <div class="divider"></div>
+        <div class="section-label">Android Performance</div>
+        <div class="control-row">
+          <label class="control-label" for="androidRenderSize">Render Size</label>
+          <select id="androidRenderSize" aria-label="Android wallpaper render size">
+            <option value="720">HD+ · 720p</option>
+            <option value="1080" selected>FHD+ · 1080p</option>
+            <option value="1440">QHD+ · 1440p</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label class="control-label" for="androidMaxFps">Frame Rate</label>
+          <select id="androidMaxFps" aria-label="Android wallpaper frame rate">
+            <option value="30">30 FPS</option>
+            <option value="60" selected>60 FPS</option>
+            <option value="90">90 FPS</option>
+            <option value="120">120 FPS</option>
+          </select>
+        </div>
+        <div class="android-performance-note">S26 Ultra: FHD+ at 60 FPS is recommended.</div>
+      </div>
+
+      <div class="control-row" id="taskbarSpaceRow">
         <span class="control-label">Reserve Taskbar Space</span>
         <div class="toggle" id="taskbarSpaceToggle" role="switch" aria-checked="false"
           aria-label="Reserve Windows taskbar space">

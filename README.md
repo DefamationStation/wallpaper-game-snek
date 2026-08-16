@@ -40,7 +40,13 @@ The Android app provides:
 - A `DreamService` for Android's charging screen saver.
 - Shared settings that update the wallpaper and screen saver.
 - Lifecycle controls that pause Snek when its surface is not visible.
-- A 30 fps Android render limit to reduce battery use and heat.
+- S26 Ultra render presets for HD+, FHD+, and QHD+.
+- Frame-rate choices for 30, 60, 90, and 120 FPS.
+
+FHD+ at 60 FPS is the Android default. It renders 1080 × 2340 on the S26
+Ultra instead of the full 1440 × 3120 surface. HD+ reduces battery and GPU use.
+QHD+ gives maximum detail. The launcher and Android WebView can still limit the
+actual frame rate.
 
 To build a debug APK:
 
@@ -52,6 +58,26 @@ To build a debug APK:
 Open **Snek Wallpaper** on the phone to change settings or to open Android's
 live-wallpaper and screen-saver selectors. The phone maker decides if one live
 wallpaper can be used on the home screen, lock screen, or both.
+
+### Automatic Android builds
+
+The required **Verify** check builds and lints the Android app for every branch.
+After a verified update reaches `main`, the Pages deployment builds a signed
+release APK and publishes it at:
+
+`https://defamationstation.github.io/wallpaper-game-snek/downloads/snek-latest.apk`
+
+The deployment also uploads the APK as a GitHub Actions artifact. Release
+signing uses these repository secrets:
+
+- `SNEK_ANDROID_KEYSTORE_BASE64`
+- `SNEK_ANDROID_KEYSTORE_PASSWORD`
+- `SNEK_ANDROID_KEY_ALIAS`
+- `SNEK_ANDROID_KEY_PASSWORD`
+
+Android does not let a normal website install an update without confirmation.
+Download the latest APK and approve the update on the phone. The stable signing
+key lets the new APK update the installed app without removing its settings.
 
 ## License
 
