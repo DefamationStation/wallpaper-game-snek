@@ -23,18 +23,26 @@
         const source = androidSettings || {};
         const renderShortEdge = allowedNumber(source.renderShortEdge, [720, 1080, 1440], DEFAULT_RENDER_SHORT_EDGE);
         const maxFps = allowedNumber(source.maxFps, [30, 60, 90, 120], DEFAULT_MAX_FPS);
+        const renderSizeChanged = window._snekRenderShortEdge !== renderShortEdge;
+        window._snekRenderShortEdge = renderShortEdge;
         renderSizeSelect.value = String(renderShortEdge);
         maxFpsSelect.value = String(maxFps);
         window._snekMinRenderIntervalMs = 1000 / maxFps;
+        if (renderSizeChanged && typeof resizeCanvas === 'function') {
+            resizeCanvas();
+            if (typeof initGame === 'function') initGame();
+        }
     }
 
     applyAndroidPerformance(null);
-    maxFpsSelect.addEventListener('change', () => {
+    function applySelectedPerformance() {
         applyAndroidPerformance({
             renderShortEdge: renderSizeSelect.value,
             maxFps: maxFpsSelect.value,
         });
-    });
+    }
+    renderSizeSelect.addEventListener('change', applySelectedPerformance);
+    maxFpsSelect.addEventListener('change', applySelectedPerformance);
 
     function applySavedSettings(raw) {
         if (!raw) return;

@@ -59,13 +59,19 @@ test('Android offers S26 Ultra render sizes and frame rates', () => {
     assert.match(loop, /shouldRender/);
 });
 
-test('the Android wallpaper scales its virtual display from saved settings', () => {
-    const preferences = read('android/app/src/main/java/dev/defamation/snek/SnekPreferences.java');
+test('the Android wallpaper fills the surface at the phone display density', () => {
     const wallpaper = read('android/app/src/main/java/dev/defamation/snek/SnekWallpaperService.java');
-    assert.match(preferences, /DEFAULT_RENDER_SHORT_EDGE = 1080/);
-    assert.match(preferences, /value == 720 \|\| value == 1080 \|\| value == 1440/);
-    assert.match(wallpaper, /virtualDisplay\.resize\(renderWidth, renderHeight, 160\)/);
-    assert.match(wallpaper, /nextRenderShortEdge != renderShortEdge/);
+    assert.match(wallpaper, /getDisplayMetrics\(\)\.densityDpi/);
+    assert.match(wallpaper, /virtualDisplay\.resize\(surfaceWidth, surfaceHeight, displayDensityDpi\)/);
+    assert.doesNotMatch(wallpaper, /scaledRenderWidth|scaledRenderHeight/);
+});
+
+test('Android quality changes canvas detail without changing its CSS layout', () => {
+    const canvas = read('js/canvas.js');
+    assert.match(canvas, /targetShortEdge \/ logicalShortEdge/);
+    assert.match(canvas, /canvas\.style\.width = canvasLogicalWidth/);
+    assert.match(canvas, /ctx\.setTransform\(canvasRenderScale/);
+    assert.match(canvas, /state\.cols = Math\.max\(1, Math\.floor\(canvasLogicalWidth \/ CELL_SIZE\)\)/);
 });
 
 test('verified main updates build and publish a signed APK', () => {

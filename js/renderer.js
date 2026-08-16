@@ -235,7 +235,7 @@ function getWallTiles(wallHex) {
 }
 
 function drawOverlay() {
-    const W = canvas.width, H = canvas.height;
+    const W = canvasLogicalWidth, H = canvasLogicalHeight;
     const { status, restartCountdown } = state;
 
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -279,11 +279,11 @@ function drawConwayLayer(layer, alpha) {
 }
 
 function buildConwayFadeLayers(cw, tiles, wallHex) {
-    const shared = makeScratchCanvas(canvas.width, canvas.height);
-    const fadeIn = makeScratchCanvas(canvas.width, canvas.height);
-    const fadeInBright = makeScratchCanvas(canvas.width, canvas.height);
-    const fadeOut = makeScratchCanvas(canvas.width, canvas.height);
-    const fadeOutBright = makeScratchCanvas(canvas.width, canvas.height);
+    const shared = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
+    const fadeIn = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
+    const fadeInBright = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
+    const fadeOut = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
+    const fadeOutBright = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
     const sharedCtx = shared.getContext('2d');
     const inCtx = fadeIn.getContext('2d');
     const inBrightCtx = fadeInBright.getContext('2d');
@@ -475,7 +475,7 @@ function drawSnake(sn, nowMs) {
 }
 
 function render(nowMs) {
-    const W = canvas.width, H = canvas.height;
+    const W = canvasLogicalWidth, H = canvasLogicalHeight;
     const { cols, rows, status, theme, colors } = state;
 
     // Board background
