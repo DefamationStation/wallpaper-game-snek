@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.defamation.snek'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dev.defamation.snek'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    sourceSets {
+        main.assets.srcDir(layout.buildDirectory.dir('generated/snekAssets'))
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register('syncSnekAssets', Copy) {
+    from('../..') {
+        include 'index.html'
+        include 'style.css'
+        include 'js/**'
+    }
+    into(layout.buildDirectory.dir('generated/snekAssets'))
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(tasks.named('syncSnekAssets'))
+}

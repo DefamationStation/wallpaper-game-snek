@@ -1,0 +1,16 @@
+<resources>
+    <style name="Theme.Snek" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#5FA882</item>
+        <item name="android:navigationBarColor">#E8EAD6</item>
+        <item name="android:statusBarColor">#E8EAD6</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.Snek.Presentation" parent="android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

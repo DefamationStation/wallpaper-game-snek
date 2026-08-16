@@ -486,3 +486,40 @@ input[type="number"]:focus {
     background: var(--btn-bg);
     font-weight: 600;
 }
+/* Android uses a normal app activity as the settings surface. The live
+   wallpaper and screen saver do not show controls over the animation. */
+body[data-android-host="wallpaper"] #settingsBtn,
+body[data-android-host="wallpaper"] #settingsPanel,
+body[data-android-host="dream"] #settingsBtn,
+body[data-android-host="dream"] #settingsPanel {
+  display: none !important;
+}
+
+body[data-android-host="settings"] #settingsBtn,
+body[data-android-host="settings"] #closeBtn {
+  display: none !important;
+}
+
+body[data-android-host="settings"] #settingsPanel {
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body[data-android-host="settings"] #settingsPanel .panel-header {
+  flex: 0 0 auto;
+}
+
+body[data-android-host="settings"] #settingsPanel .panel-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}

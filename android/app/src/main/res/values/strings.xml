@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Snek Wallpaper</string>
+    <string name="wallpaper_name">Snek Live Wallpaper</string>
+    <string name="dream_name">Snek Screen Saver</string>
+    <string name="settings_intro">Change Snek below. Changes are saved for the live wallpaper and screen saver.</string>
+    <string name="set_wallpaper">Set live wallpaper</string>
+    <string name="open_screensaver">Screen saver settings</string>
+    <string name="wallpaper_description">AI snakes move through a calm procedural world.</string>
+</resources>
