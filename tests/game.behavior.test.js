@@ -156,6 +156,43 @@ test('active behavior blocks a new greeting', () => {
     assert.deepEqual(target.thoughts, []);
 });
 
+test('refreshing a glow-seeking thought extends its expiry without restarting it', () => {
+    const { context, setNow } = loadGame();
+    const snake = makeSnake(0, 'glow-seeking');
+    const glowThought = ['\u2728'];
+    const options = { tint: 'rgba(255, 218, 92, 0.88)', tag: 'behavior' };
+
+    context.spawnThought(snake, glowThought, 900, options);
+    const thought = snake.thoughts[0];
+    const originalBorn = thought.born;
+
+    setNow(10_750);
+    context.spawnThought(snake, glowThought, 900, options);
+    setNow(11_000);
+    context.spawnThought(snake, glowThought, 900, options);
+
+    assert.equal(snake.thoughts.length, 1);
+    assert.equal(thought.born, originalBorn);
+    assert.equal(thought.expiresAt, 11_900);
+    assert.equal(context.thoughtIsActive(thought, 11_899), true);
+    assert.equal(context.thoughtIsActive(thought, 11_900), false);
+});
+
+test('a glow-seeking thought lease covers the slowest supported tick interval', () => {
+    const { context, state } = loadInitialGame();
+    state.tickMs = 1_000;
+    state.glowSeed.cell = { x: 10, y: 10 };
+    const snake = context.makeSnake(
+        0,
+        [{ x: 2, y: 2 }],
+        '#7ec8a4',
+        'Test Snek',
+        'cautious'
+    );
+
+    assert.equal(context.getBehaviorThoughtTtl(snake, 'glow-seeking'), 1_100);
+});
+
 test('snakes that choose the same cell both collide', () => {
     const { context } = loadGame();
     const first = makeSnake(0);

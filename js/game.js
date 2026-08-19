@@ -132,6 +132,16 @@ function selectGlowSeedWinner(plans) {
 // opts.tint: optional rgba string for colored bubble background (default white).
 // opts.tag: optional string key; only one thought with a given tag can exist at a time.
 //   Re-spawning with the same tag refreshes the existing thought instead of adding a new one.
+function getThoughtExpiresAt(thought) {
+    const explicitExpiry = Number(thought && thought.expiresAt);
+    if (Number.isFinite(explicitExpiry)) return explicitExpiry;
+    return Number(thought && thought.born) + Number(thought && thought.lifetime);
+}
+
+function thoughtIsActive(thought, now) {
+    return Number.isFinite(now) && now < getThoughtExpiresAt(thought);
+}
+
 function spawnThought(sn, pool, lifetime, opts) {
     if (!sn.body.length) return;
     const now = performance.now();
@@ -147,6 +157,7 @@ function spawnThought(sn, pool, lifetime, opts) {
                 // Keep tagged thoughts visually stable while the state stays active.
                 // Do not hard-reset born every tick (that causes pop-in jitter).
                 t.lifetime = ttl;
+                t.expiresAt = now + ttl;
                 t.tint = tint || null;
                 t.shadowTint = shadowTint;
                 // Re-pick emoji only when the source pool changes.
@@ -154,8 +165,6 @@ function spawnThought(sn, pool, lifetime, opts) {
                     t.emoji = pool[Math.floor(Math.random() * pool.length)];
                 }
                 t.poolSig = poolSig;
-                const age = now - t.born;
-                if (age > ttl * 0.8) t.born = now - ttl * 0.8;
                 return;
             }
         }
@@ -164,6 +173,7 @@ function spawnThought(sn, pool, lifetime, opts) {
         emoji: pool[Math.floor(Math.random() * pool.length)],
         born: now,
         lifetime: ttl,
+        expiresAt: now + ttl,
         tint: tint || null,
         shadowTint: shadowTint,
         poolSig: poolSig,
@@ -276,6 +286,12 @@ function assignGreedyStealTarget(sn, fromPos) {
     return !!best;
 }
 
+function getBehaviorThoughtTtl(sn, behaviorState) {
+    const baseTtlMs = behaviorState === 'stealing' ? 1300 : 900;
+    const tickMs = Number(getSnakeTickMs(sn));
+    return Number.isFinite(tickMs) ? Math.max(baseTtlMs, tickMs + 100) : baseTtlMs;
+}
+
 // Prepare one move without changing the snake's position. The loop prepares
 // all due snakes before it resolves collisions, so snake list order cannot
 // decide which snake survives.
@@ -329,8 +345,8 @@ function prepareSnakeTick(sn, now) {
     // ---- Behavior state visual indicators ----
     // Spawn persistent colored bubbles for active behavior states; clear when state ends.
     const _bState = sn._behaviorState;
-    // Stealing mode can tick slower than kill/fear chase mode; keep its bubble alive longer.
-    const behaviorTtlMs = _bState === 'stealing' ? 1300 : 900;
+    // Keep the bubble alive past the next possible snake tick, including at 1 TPS.
+    const behaviorTtlMs = getBehaviorThoughtTtl(sn, _bState || sn._behaviorVisualState);
     if (_bState && BEHAVIOR_TINTS[_bState]) {
         // A social thought can remain alive after a chase starts. Remove it so
         // incompatible thoughts, such as a hug during a hunt, do not stack.

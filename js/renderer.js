@@ -76,8 +76,7 @@ function drawThoughts(sn, nowMs) {
     let behaviorIdx = -1;
     for (let read = 0; read < sn.thoughts.length; read++) {
         const t = sn.thoughts[read];
-        const age = nowMs - t.born;
-        if (age >= t.lifetime) continue; // expired â€” drop it
+        if (!thoughtIsActive(t, nowMs)) continue; // expired, drop it
         sn.thoughts[write] = t;
         if (behaviorIdx === -1 && t.tag === 'behavior') behaviorIdx = write;
         write++;
@@ -96,6 +95,7 @@ function drawThoughts(sn, nowMs) {
         const t = sn.thoughts[renderOrder[stackIndex]];
         const age = nowMs - t.born;
         const progress = age / t.lifetime;
+        const remainingMs = getThoughtExpiresAt(t) - nowMs;
         const fadeStart = 0.75;
         const isBehavior = t.tag === 'behavior';
         let alpha = 1;
@@ -103,8 +103,8 @@ function drawThoughts(sn, nowMs) {
         if (!isBehavior && progress < 0.08) {
             scale = progress / 0.08;
         }
-        if (!isBehavior && progress > fadeStart) {
-            alpha = 1 - (progress - fadeStart) / (1 - fadeStart);
+        if (!isBehavior && remainingMs < t.lifetime * (1 - fadeStart)) {
+            alpha = remainingMs / (t.lifetime * (1 - fadeStart));
         }
 
         const px = headX * CELL_SIZE;
