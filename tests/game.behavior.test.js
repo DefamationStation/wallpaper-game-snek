@@ -208,3 +208,46 @@ test('a head swap causes both snakes to collide', () => {
 
     assert.equal(dead.size, 2);
 });
+
+test('a glow seed adds exactly five segments to its eater', () => {
+    const { context, state } = loadInitialGame();
+    const snake = context.makeSnake(0, [
+        { x: 3, y: 2 },
+        { x: 2, y: 2 },
+        { x: 1, y: 2 },
+    ], '#7ec8a4', 'Test Snek', 'cautious');
+    state.snakes = [snake];
+    state.glowSeed.cell = { x: 4, y: 2 };
+    const before = snake.body.length;
+
+    context.collectGlowSeed(snake, 10_000);
+
+    assert.equal(snake.body.length, before + 5);
+    assert.equal(state.glowSeed.cell, null);
+    assert.ok(state.glowSeed.nextSpawnMs >= 10_000 + vm.runInContext('GLOW_SEED_MIN_DELAY_MS', context));
+});
+
+test('food placement never uses the active glow seed cell', () => {
+    const { context, state } = loadInitialGame();
+    state.cols = 2;
+    state.rows = 1;
+    const snake = context.makeSnake(0, [{ x: 0, y: 0 }], '#7ec8a4', 'Test Snek', 'cautious');
+    state.snakes = [snake];
+    state.glowSeed.cell = { x: 1, y: 0 };
+
+    context.placeFood(snake);
+
+    assert.equal(snake.food, null);
+});
+
+test('simultaneous glow seed arrivals select one random winner', () => {
+    const { context } = loadGame();
+    const first = { ateGlowSeed: true };
+    const second = { ateGlowSeed: true };
+    const normal = { ateGlowSeed: false };
+    vm.runInContext('Math.random = () => 0.75;', context);
+
+    const winner = context.selectGlowSeedWinner([first, second, normal]);
+
+    assert.equal(winner, second);
+});

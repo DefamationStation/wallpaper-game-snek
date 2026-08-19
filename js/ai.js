@@ -165,6 +165,49 @@ function floodFillCount(sx, sy, occupied, cap, extraBlockedIdx) {
     return count;
 }
 
+// A target snake's head is marked in the shared occupied grid. Clear only
+// that start cell for the flood-fill, then restore the grid for other checks.
+function floodFillFromOccupiedStart(sx, sy, occupied, cap, extraBlockedIdx) {
+    const startIdx = sy * state.cols + sx;
+    const original = occupied[startIdx];
+    occupied[startIdx] = 0;
+    const count = floodFillCount(sx, sy, occupied, cap, extraBlockedIdx);
+    occupied[startIdx] = original;
+    return count;
+}
+
+// Keep an active cautious threat until it moves beyond a wider exit range.
+// This hysteresis prevents rapid enter/exit changes at the entry boundary.
+function selectCautiousThreat(sn, head) {
+    if (Number.isInteger(sn.cautiousEvadeTargetSnakeId)) {
+        const retained = state.snakes.find(other =>
+            other.id === sn.cautiousEvadeTargetSnakeId &&
+            !other.respawning &&
+            other.body.length
+        );
+        if (retained) {
+            const retainedHead = retained.body[0];
+            const distance = Math.abs(head.x - retainedHead.x) + Math.abs(head.y - retainedHead.y);
+            if (distance <= CAUTIOUS_EVADE_EXIT_RANGE) return retained;
+        }
+        sn.cautiousEvadeTargetSnakeId = null;
+    }
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const other of state.snakes) {
+        if (other.id === sn.id || other.respawning || !other.body.length) continue;
+        const otherHead = other.body[0];
+        const distance = Math.abs(head.x - otherHead.x) + Math.abs(head.y - otherHead.y);
+        if (distance <= CAUTIOUS_EVADE_RANGE && distance < nearestDistance) {
+            nearest = other;
+            nearestDistance = distance;
+        }
+    }
+    sn.cautiousEvadeTargetSnakeId = nearest ? nearest.id : null;
+    return nearest;
+}
+
 // ---- Direction decision ----
 // Personality-aware multi-phase strategy:
 //   Phase 0: Personality overrides (aggressive kill, cautious evasion, greedy steal)
@@ -193,6 +236,9 @@ function computeNextDirection(sn) {
             sn._behaviorState = null;
             sn._behaviorTarget = null;
         }
+    }
+    if (sn.personality !== 'cautious' || sn.wandering) {
+        sn.cautiousEvadeTargetSnakeId = null;
     }
 
     // excludeHead=true for caller; other snakes fully marked as walls.
@@ -247,6 +293,36 @@ function computeNextDirection(sn) {
             bestLength = path.length;
         }
         return best;
+    }
+
+    // ================================================================
+    // Shared glow seed: every personality uses the same target, safety
+    // margin, and fallback rule. The game loop also gives all snakes the
+    // same movement interval while the seed is active.
+    // ================================================================
+    const glowSeed = state.glowSeed && state.glowSeed.cell;
+    if (glowSeed) {
+        sn._behaviorState = 'glow-seeking';
+        sn._behaviorTarget = null;
+        const pathDirection = tryPathTo(glowSeed.x, glowSeed.y, GLOW_SEED_SAFETY_MARGIN);
+        if (pathDirection) return pathDirection;
+
+        let bestDirection = null;
+        let bestDistance = Infinity;
+        let bestSpace = -1;
+        for (const [dx, dy] of DIRS) {
+            const nx = head.x + dx, ny = head.y + dy;
+            if (!inBounds(nx, ny) || occupied[ny * cols + nx]) continue;
+            const space = safeSpace(nx, ny, sn.body.length + GLOW_SEED_SAFETY_MARGIN);
+            if (space < sn.body.length) continue;
+            const distance = Math.abs(nx - glowSeed.x) + Math.abs(ny - glowSeed.y);
+            if (distance < bestDistance || (distance === bestDistance && space > bestSpace)) {
+                bestDirection = { x: dx, y: dy };
+                bestDistance = distance;
+                bestSpace = space;
+            }
+        }
+        if (bestDirection) return bestDirection;
     }
 
     // ================================================================
@@ -342,7 +418,7 @@ function computeNextDirection(sn) {
                 const bx = th.x + dx, by = th.y + dy;
                 if (!inBounds(bx, by) || occupied[by * cols + bx]) continue;
                 const blockIdx = by * cols + bx;
-                const targetSpace = floodFillCount(th.x, th.y, baseSim, 0, blockIdx);
+                const targetSpace = floodFillFromOccupiedStart(th.x, th.y, baseSim, 0, blockIdx);
                 if (targetSpace < bestBlockScore) {
                     bestBlockScore = targetSpace;
                     bestBlockDir = { bx, by };
@@ -368,17 +444,7 @@ function computeNextDirection(sn) {
     // When any other snake's head is too close, flee instead of eating.
     // ================================================================
     if (sn.personality === 'cautious' && !sn.wandering && state.snakes.length > 1) {
-        let nearestThreat = null;
-        let nearestDist = Infinity;
-        for (const other of state.snakes) {
-            if (other.id === sn.id || other.respawning || !other.body.length) continue;
-            const oh = other.body[0];
-            const dist = Math.abs(head.x - oh.x) + Math.abs(head.y - oh.y);
-            if (dist <= CAUTIOUS_EVADE_RANGE && dist < nearestDist) {
-                nearestThreat = other;
-                nearestDist = dist;
-            }
-        }
+        const nearestThreat = selectCautiousThreat(sn, head);
         if (nearestThreat) {
             sn._behaviorState = 'evading';
             sn._behaviorTarget = nearestThreat.id;

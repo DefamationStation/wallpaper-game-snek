@@ -57,6 +57,10 @@ function placeFood(sn) {
     for (const other of state.snakes) {
         if (other.food) grid[other.food.y * cols + other.food.x] = 1;
     }
+    if (state.glowSeed && state.glowSeed.cell) {
+        const seed = state.glowSeed.cell;
+        grid[seed.y * cols + seed.x] = 1;
+    }
     const totalCells = cols * rows;
 
     let freeCount = 0;

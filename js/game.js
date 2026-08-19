@@ -15,6 +15,7 @@ const THOUGHT_SAD = ['😢', '😭'];
 const THOUGHT_GROSS = ['🤢', '🤮'];
 const THOUGHT_GREET = ['👋', '🫂'];
 const THOUGHT_CHAT = ['💬', '🗨️', '🗣️'];
+const THOUGHT_GLOW = ['🌟', '✨'];
 const SNEK_NAME_POOL = [
     'Snekboi', 'Snekgirl', 'Noodlebro', 'Noodlette', 'Sir Hiss', 'Lady Loop',
     'Wiggles', 'Boop Snek', 'Cuddles', 'Slinky', 'Hissy Elliott', 'Snakira',
@@ -45,6 +46,83 @@ function getNextSnakeId() {
     const id = state.nextSnakeId;
     state.nextSnakeId++;
     return id;
+}
+
+function scheduleNextGlowSeed(now) {
+    const span = GLOW_SEED_MAX_DELAY_MS - GLOW_SEED_MIN_DELAY_MS;
+    state.glowSeed.nextSpawnMs = now + GLOW_SEED_MIN_DELAY_MS + Math.floor(Math.random() * (span + 1));
+}
+
+function resetGlowSeed(now) {
+    state.glowSeed.cell = null;
+    scheduleNextGlowSeed(Number.isFinite(now) ? now : performance.now());
+}
+
+function placeGlowSeed(now) {
+    const cols = state.cols, rows = state.rows;
+    if (cols < 1 || rows < 1) {
+        state.glowSeed.nextSpawnMs = now + GLOW_SEED_RETRY_DELAY_MS;
+        return false;
+    }
+
+    const occupied = buildOccupiedGrid(false, true, null);
+    for (const sn of state.snakes) {
+        if (sn.food) occupied[sn.food.y * cols + sn.food.x] = 1;
+    }
+    let freeCount = 0;
+    for (let i = 0; i < occupied.length; i++) if (!occupied[i]) freeCount++;
+    if (!freeCount) {
+        state.glowSeed.nextSpawnMs = now + GLOW_SEED_RETRY_DELAY_MS;
+        return false;
+    }
+
+    let pick = Math.floor(Math.random() * freeCount);
+    for (let i = 0; i < occupied.length; i++) {
+        if (occupied[i]) continue;
+        if (pick-- === 0) {
+            state.glowSeed.cell = { x: i % cols, y: (i / cols) | 0 };
+            state.glowSeed.nextSpawnMs = 0;
+            // Give every living snake the same start time for the race.
+            for (const sn of state.snakes) {
+                if (!sn.respawning && sn.body.length) sn.lastTickMs = now;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+function updateGlowSeed(now) {
+    const seed = state.glowSeed.cell;
+    if (seed) {
+        if (state.conway.enabled && state.conway.wallTarget) {
+            const idx = seed.y * state.cols + seed.x;
+            if (conwayCellIsBlocked(idx, true)) {
+                state.glowSeed.cell = null;
+                placeGlowSeed(now);
+            }
+        }
+        return;
+    }
+    if (now >= state.glowSeed.nextSpawnMs) placeGlowSeed(now);
+}
+
+function collectGlowSeed(sn, now) {
+    const tail = sn.body[sn.body.length - 1] || sn.body[0];
+    if (!tail) return false;
+    for (let i = 0; i < GLOW_SEED_SEGMENT_BONUS; i++) {
+        sn.body.push({ x: tail.x, y: tail.y });
+    }
+    state.glowSeed.cell = null;
+    scheduleNextGlowSeed(now);
+    spawnThought(sn, THOUGHT_GLOW, 2_600);
+    return true;
+}
+
+function selectGlowSeedWinner(plans) {
+    const arrivals = plans.filter(plan => plan.ateGlowSeed);
+    if (!arrivals.length) return null;
+    return arrivals[Math.floor(Math.random() * arrivals.length)];
 }
 
 // Spawn a chat-bubble thought above the snake's head.
@@ -142,7 +220,8 @@ function makeSnake(id, body, colorHead, displayName, personality) {
         personality: PERSONALITIES.includes(personality) ? personality : pickPersonality(),
         // active behavior state (set by AI each tick, used for visual indicators)
         // null = normal, 'killing' = aggressive hunt, 'feared' = being hunted,
-        // 'evading' = cautious fleeing, 'stealing' = greedy targeting other food
+        // 'evading' = cautious fleeing, 'stealing' = greedy targeting other food,
+        // 'glow-seeking' = shared glow seed race
         _behaviorState: null,
         _behaviorTarget: null,   // id of the snake being targeted (for killing/feared pair)
         _behaviorVisualState: null,
@@ -153,6 +232,7 @@ function makeSnake(id, body, colorHead, displayName, personality) {
         aggressiveRetaliationUntilMs: 0,
         aggressiveKillTargetSnakeId: null,
         aggressiveKillUntilMs: 0,
+        cautiousEvadeTargetSnakeId: null,
         // satiety
         satiety: 0,
         wandering: false,
@@ -280,12 +360,16 @@ function prepareSnakeTick(sn, now) {
     const ateFood = !!(sn.food &&
         newHead.x === sn.food.x &&
         newHead.y === sn.food.y);
-    return { sn, lenBefore, now, newHead, ateFood };
+    const glowSeed = state.glowSeed && state.glowSeed.cell;
+    const ateGlowSeed = !!(glowSeed &&
+        newHead.x === glowSeed.x &&
+        newHead.y === glowSeed.y);
+    return { sn, lenBefore, now, newHead, ateFood, ateGlowSeed };
 }
 
 // Apply one move after the group collision result is known.
 function commitSnakeTick(plan) {
-    const { sn, lenBefore, now, newHead, ateFood } = plan;
+    const { sn, lenBefore, now, newHead, ateFood, ateGlowSeed } = plan;
     const prevBody = sn.body.map(c => ({ x: c.x, y: c.y }));
     sn.body.unshift(newHead);
     if (!ateFood) sn.body.pop();
@@ -321,6 +405,15 @@ function commitSnakeTick(plan) {
             if (Math.random() < GREEDY_STEAL_TRIGGER_CHANCE) {
                 sn.greedyStealActive = assignGreedyStealTarget(sn, newHead);
             }
+        }
+    }
+
+    if (ateGlowSeed && state.glowSeed.cell &&
+        state.glowSeed.cell.x === newHead.x && state.glowSeed.cell.y === newHead.y) {
+        collectGlowSeed(sn, now);
+        if (sn.body.length >= state.cols * state.rows) {
+            triggerComplete();
+            return sn.body.length !== lenBefore;
         }
     }
 
@@ -422,11 +515,19 @@ function findCollidingMovePlans(plans) {
 function gameTickForSnakes(snakes, now) {
     if (state.status !== 'running' || !snakes.length) return false;
     const plans = snakes.map(sn => prepareSnakeTick(sn, now)).filter(Boolean);
-    const dead = findCollidingMovePlans(plans);
+    const glowWinner = selectGlowSeedWinner(plans);
+    const waiting = new Set();
+    if (glowWinner) {
+        for (const plan of plans) {
+            if (plan.ateGlowSeed && plan !== glowWinner) waiting.add(plan);
+        }
+    }
+    const activePlans = waiting.size ? plans.filter(plan => !waiting.has(plan)) : plans;
+    const dead = findCollidingMovePlans(activePlans);
     if (dead.size) handleSnakeDeaths(Array.from(dead, plan => plan.sn));
 
     let changed = false;
-    for (const plan of plans) {
+    for (const plan of activePlans) {
         if (dead.has(plan) || state.status !== 'running') continue;
         if (commitSnakeTick(plan)) changed = true;
     }
@@ -563,6 +664,7 @@ function handleSnakeDeaths(deadSnakes) {
         sn.aggressiveRetaliationUntilMs = 0;
         sn.aggressiveKillTargetSnakeId = null;
         sn.aggressiveKillUntilMs = 0;
+        sn.cautiousEvadeTargetSnakeId = null;
     }
 }
 
@@ -602,6 +704,7 @@ function respawnSnake(sn, ts) {
     sn.aggressiveRetaliationUntilMs = 0;
     sn.aggressiveKillTargetSnakeId = null;
     sn.aggressiveKillUntilMs = 0;
+    sn.cautiousEvadeTargetSnakeId = null;
     sn.lastTickMs = ts;
     sn.lastMoveMs = ts;
     sn.lastGrossThoughtMs = 0;
@@ -624,6 +727,10 @@ function findRespawnPosition() {
     if (cols < 1 || rows < 1) return null;
 
     const grid = buildOccupiedGrid(false, true, null);
+    if (state.glowSeed && state.glowSeed.cell) {
+        const seed = state.glowSeed.cell;
+        grid[seed.y * cols + seed.x] = 1;
+    }
     const len = Math.max(1, Math.min(3, cols));
     const minHeadX = len - 1;
     const maxHeadX = cols - 1;
@@ -713,6 +820,7 @@ function startRestartCountdown() {
 function initGame() {
     clearInterval(state.restartTimer);
     state.restartTimer = null;
+    resetGlowSeed(performance.now());
 
     const cx = Math.floor(state.cols / 2);
     const cy = Math.floor(state.rows / 2);

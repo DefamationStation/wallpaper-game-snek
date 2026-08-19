@@ -8,10 +8,10 @@
     "type": "slider",
     "text": "Speed (ticks/sec)",
     "min": 1,
-    "max": 60,
+    "max": 20,
     "step": 1,
-    "value": 8,
-    "help": "Ticks per second (1-60). 1 = very slow, 8 = default, 60 = maximum."
+    "value": 4,
+    "help": "Ticks per second (1-20). 1 = very slow, 4 = default, 20 = maximum."
   },
   "paused": {
     "type": "checkbox",

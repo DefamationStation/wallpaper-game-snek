@@ -33,6 +33,12 @@ const state = {
         gridLineNight: '#1a1a2e',
     },
 
+    // One rare bonus target shared by every living snake.
+    glowSeed: {
+        cell: null,
+        nextSpawnMs: 0,
+    },
+
     // ---- Conway dungeon wall state ----
     conway: {
         enabled: true,
@@ -41,9 +47,15 @@ const state = {
         wallAlpha: null,      // legacy field (no longer updated per-frame)
         wallTarget: null,     // Uint8Array [cols*rows]: incoming/current generation
         wallPrev: null,       // Uint8Array [cols*rows]: outgoing generation
+        wallSolid: null,      // cached per-cell collision view during a renewal wave
+        wallSolidProgress: -1,
         fadeProgress: 1.0,    // 0â†’1 during crossfade, 1 when stable
         fadeEase: 1.0,        // eased fadeProgress (used for rendering/collision thresholds)
         fadeStartMs: 0,
+        waveX: 0,
+        waveY: 0,
+        waveMaxDistance: 1,
+        waveBand: 4,
         nextRegenMs: 0,       // absolute timestamp for next regen
         pendingGen: null,     // prebuilt generation used on next regen
         pendingBuildTimer: 0, // async build handle for pendingGen
