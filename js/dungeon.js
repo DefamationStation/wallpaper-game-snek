@@ -145,16 +145,68 @@ function conwayCurrentEase(cw) {
     return conwayEase(cw.fadeProgress || 0);
 }
 
-// Returns the wall bitmap currently considered "solid" for gameplay.
-// During crossfade, this flips from wallPrev to wallTarget at ease 0.5
-// to preserve previous collision behavior (wallAlpha >= 0.5 threshold).
+// Return the local renewal amount for one cell. The front starts at a random
+// board edge and moves out in a soft radial wave.
+function conwayCellWaveProgress(idx, cw) {
+    if (!cw) cw = state.conway;
+    if (cw.fadeProgress >= 1) return 1;
+    const cols = state.cols;
+    const x = idx % cols;
+    const y = (idx / cols) | 0;
+    const distance = Math.hypot(x - cw.waveX, y - cw.waveY);
+    const band = Math.max(1, cw.waveBand || 4);
+    const maxDistance = Math.max(1, cw.waveMaxDistance || 1);
+    const front = conwayCurrentEase(cw) * (maxDistance + band);
+    return conwayEase((front - distance) / band);
+}
+
+// Returns the wall bitmap currently considered solid for gameplay. Each cell
+// switches at the midpoint of its own renewal wave.
 function conwayCurrentSolidGrid() {
     const cw = state.conway;
     if (!cw.wallTarget) return null;
     if (cw.fadeProgress < 1.0 && cw.wallPrev) {
-        return conwayCurrentEase(cw) < 0.5 ? cw.wallPrev : cw.wallTarget;
+        const size = state.cols * state.rows;
+        if (!cw.wallSolid || cw.wallSolid.length !== size) {
+            cw.wallSolid = new Uint8Array(size);
+            cw.wallSolidProgress = -1;
+        }
+        if (cw.wallSolidProgress !== cw.fadeProgress) {
+            for (let i = 0; i < size; i++) {
+                cw.wallSolid[i] = conwayCellWaveProgress(i, cw) < 0.5
+                    ? cw.wallPrev[i]
+                    : cw.wallTarget[i];
+            }
+            cw.wallSolidProgress = cw.fadeProgress;
+        }
+        return cw.wallSolid;
     }
     return cw.wallTarget;
+}
+
+function conwaySetWaveOrigin(cw, cols, rows) {
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) {
+        cw.waveX = Math.floor(Math.random() * Math.max(1, cols));
+        cw.waveY = 0;
+    } else if (side === 1) {
+        cw.waveX = Math.max(0, cols - 1);
+        cw.waveY = Math.floor(Math.random() * Math.max(1, rows));
+    } else if (side === 2) {
+        cw.waveX = Math.floor(Math.random() * Math.max(1, cols));
+        cw.waveY = Math.max(0, rows - 1);
+    } else {
+        cw.waveX = 0;
+        cw.waveY = Math.floor(Math.random() * Math.max(1, rows));
+    }
+    cw.waveMaxDistance = Math.max(
+        Math.hypot(cw.waveX, cw.waveY),
+        Math.hypot(Math.max(0, cols - 1) - cw.waveX, cw.waveY),
+        Math.hypot(cw.waveX, Math.max(0, rows - 1) - cw.waveY),
+        Math.hypot(Math.max(0, cols - 1) - cw.waveX, Math.max(0, rows - 1) - cw.waveY),
+        1
+    );
+    cw.waveBand = Math.max(3, Math.min(8, Math.round(Math.min(cols, rows) * 0.12)));
 }
 
 function conwayCellIsBlocked(idx, includeTargetWalls) {
@@ -190,9 +242,12 @@ function conwayInit(fresh, prebuiltGen) {
     }
 
     cw.wallTarget = newGen;
+    cw.wallSolid = null;
+    cw.wallSolidProgress = -1;
     cw.fadeProgress = 0;
     cw.fadeEase = 0;
     cw.fadeStartMs = performance.now();
+    conwaySetWaveOrigin(cw, cols, rows);
 
     cw.nextRegenMs = performance.now() + cw.regenMs;
     conwaySchedulePendingGeneration();
@@ -210,6 +265,7 @@ function conwayUpdateFade(nowMs) {
 
     if (cw.fadeProgress < 1.0) {
         cw.fadeProgress = Math.min(1.0, (nowMs - cw.fadeStartMs) / CONWAY_FADE_MS);
+        cw.wallSolidProgress = -1;
     }
     cw.fadeEase = conwayEase(cw.fadeProgress);
 }
@@ -223,6 +279,8 @@ function conwayClear() {
     cw.wallAlpha = null;
     cw.wallTarget = null;
     cw.wallPrev = null;
+    cw.wallSolid = null;
+    cw.wallSolidProgress = -1;
     cw.fadeProgress = 1.0;
     cw.fadeEase = 1.0;
     cw.nextRegenMs = 0;

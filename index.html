@@ -15,7 +15,8 @@
 
   <canvas id="gameCanvas"></canvas>
 
-  <button id="settingsBtn" title="Settings" aria-label="Open settings">
+  <button id="settingsBtn" type="button" aria-controls="settingsPanel" aria-expanded="false"
+    title="Settings" aria-label="Open settings">
     <svg id="settingsGearSvg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <!-- Conway regen countdown ring — updated by renderer.js each frame -->
       <!-- r=11 → circumference ≈ 69.1; starts hidden, shown only when Conway is on -->
@@ -36,24 +37,24 @@
     </svg>
   </button>
 
-  <div id="settingsPanel" role="dialog" aria-label="Game Settings">
+  <div id="settingsPanel" role="dialog" aria-label="Game Settings" aria-hidden="true" inert>
     <div class="panel-header">
       <span class="panel-title">Settings</span>
-      <button id="closeBtn" aria-label="Close settings">&#x2715;</button>
+      <button id="closeBtn" type="button" aria-label="Close settings">&#x2715;</button>
     </div>
     <div class="panel-body">
 
       <!-- Speed -->
       <div class="control-row">
         <span class="control-label">Speed <span style="color:var(--text-secondary);font-size:10px;">tps</span></span>
-        <input type="number" id="speedInput" min="1" max="60" value="8" aria-label="Game speed (ticks per second)">
+        <input type="number" id="speedInput" min="1" max="20" value="4" aria-label="Game speed (ticks per second)">
       </div>
 
       <div class="control-row">
         <span class="control-label">Smooth Move</span>
-        <div class="toggle active" id="smoothToggle" role="switch" aria-checked="true" aria-label="Smooth snake movement">
+        <button type="button" class="toggle active" id="smoothToggle" role="switch" aria-checked="true" aria-label="Smooth snake movement">
           <div class="toggle-thumb"></div>
-        </div>
+        </button>
       </div>
 
       <div id="androidPerformanceControls">
@@ -81,10 +82,10 @@
 
       <div class="control-row" id="taskbarSpaceRow">
         <span class="control-label">Reserve Taskbar Space</span>
-        <div class="toggle" id="taskbarSpaceToggle" role="switch" aria-checked="false"
+        <button type="button" class="toggle" id="taskbarSpaceToggle" role="switch" aria-checked="false"
           aria-label="Reserve Windows taskbar space">
           <div class="toggle-thumb"></div>
-        </div>
+        </button>
       </div>
 
       <div class="divider"></div>
@@ -95,7 +96,7 @@
 
       <!-- Add Snake button -->
       <div class="control-row">
-        <button class="action-btn" id="addSnakeBtn" style="flex:1;" aria-label="Add a new snake">+ Add Snake</button>
+        <button type="button" class="action-btn" id="addSnakeBtn" style="flex:1;" aria-label="Add a new snake">+ Add Snake</button>
       </div>
 
       <!-- Board Color -->
@@ -121,9 +122,9 @@
       <!-- Night Mode -->
       <div class="control-row">
         <span class="control-label">Night Mode</span>
-        <div class="toggle" id="nightToggle" role="switch" aria-checked="false" aria-label="Night mode">
+        <button type="button" class="toggle" id="nightToggle" role="switch" aria-checked="false" aria-label="Night mode">
           <div class="toggle-thumb"></div>
-        </div>
+        </button>
       </div>
 
       <div class="divider"></div>
@@ -131,9 +132,9 @@
       <!-- Procedural wall toggle -->
       <div class="control-row">
         <span class="control-label">Procedural Walls</span>
-        <div class="toggle" id="conwayToggle" role="switch" aria-checked="false" aria-label="Procedural walls">
+        <button type="button" class="toggle" id="conwayToggle" role="switch" aria-checked="false" aria-label="Procedural walls">
           <div class="toggle-thumb"></div>
-        </div>
+        </button>
       </div>
 
       <!-- Procedural wall controls (revealed when mode is on) -->
@@ -154,18 +155,20 @@
 
       <!-- Actions -->
       <div class="button-row">
-        <button class="action-btn" id="pauseBtn">Pause</button>
-        <button class="action-btn" id="restartBtn">Restart</button>
+        <button type="button" class="action-btn" id="pauseBtn">Pause</button>
+        <button type="button" class="action-btn" id="restartBtn">Restart</button>
       </div>
 
       <div class="divider"></div>
 
       <div class="section-label">Theme Slots</div>
       <div class="theme-slot-row">
-        <button class="theme-slot-btn" data-slot="1" aria-label="Save to theme slot 1">1</button>
-        <button class="theme-slot-btn" data-slot="2" aria-label="Save to theme slot 2">2</button>
-        <button class="theme-slot-btn" data-slot="3" aria-label="Save to theme slot 3">3</button>
+        <button type="button" class="theme-slot-btn" data-slot="1" aria-label="Load theme slot 1">1</button>
+        <button type="button" class="theme-slot-btn" data-slot="2" aria-label="Load theme slot 2">2</button>
+        <button type="button" class="theme-slot-btn" data-slot="3" aria-label="Load theme slot 3">3</button>
       </div>
+      <button type="button" class="action-btn theme-save-btn" id="saveThemeBtn" aria-pressed="false">Save current theme</button>
+      <div id="themeSlotStatus" class="theme-slot-status" aria-live="polite">Select a slot to load it.</div>
 
     </div>
   </div>

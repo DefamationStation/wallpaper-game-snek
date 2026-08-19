@@ -6,10 +6,17 @@
 const CELL_SIZE = 20;
 const DEFAULT_TPS = 4;       // ticks per second at startup
 const MIN_TPS = 1;           // slowest: 1 tick/sec
-const MAX_TPS = 20;          // fastest: 60 ticks/sec (matches monitor refresh)
+const MAX_TPS = 20;          // fastest: 20 ticks/sec
 const RESTART_DELAY = 10;    // seconds before auto-restart after game over
 const CONWAY_FADE_MS = 3_000; // wall crossfade duration in ms
 const CONWAY_CLEAR_R = 8;    // cell radius kept clear around snake start
+
+// ---- Shared glow seed ----
+const GLOW_SEED_MIN_DELAY_MS = 45_000;
+const GLOW_SEED_MAX_DELAY_MS = 90_000;
+const GLOW_SEED_RETRY_DELAY_MS = 5_000;
+const GLOW_SEED_SEGMENT_BONUS = 5;
+const GLOW_SEED_SAFETY_MARGIN = 1;
 
 // ---- Satiety / wander mode ----
 const SATIETY_MAX = 10;              // foods eaten before entering wander mode
@@ -49,6 +56,7 @@ const AGGRESSIVE_KILL_CHANCE = 0.3;      // probability per tick to enter kill m
 const AGGRESSIVE_KILL_DURATION_MS = 10_000; // once triggered by food proximity, stay in kill mode for 10s
 const AGGRESSIVE_RETALIATE_DURATION_MS = 20_000; // aggressive snake hunts food thief for 20s
 const CAUTIOUS_EVADE_RANGE = 5;          // Manhattan distance before cautious evades
+const CAUTIOUS_EVADE_EXIT_RANGE = 7;     // wider exit range prevents boundary-state flicker
 
 // ---- Behavior state visual indicators ----
 const BEHAVIOR_TINTS = {
@@ -56,11 +64,13 @@ const BEHAVIOR_TINTS = {
     feared: 'rgba(255, 100, 100, 0.80)',  // red-ish bubble for victim being hunted
     evading: 'rgba(130, 180, 255, 0.85)',  // blue bubble for cautious evasion
     stealing: 'rgba(255, 210, 80, 0.85)',   // gold bubble for greedy food theft
+    'glow-seeking': 'rgba(255, 218, 92, 0.88)', // shared glow seed race
 };
 const BEHAVIOR_EMOJIS = {
     killing: ['😤', '😡', '🤬'],
     feared: ['😨', '😱'],
     evading: ['😰', '🫣'],
     stealing: ['🤑', '💰'],
+    'glow-seeking': ['✨'],
 };
 const CHASE_SPEED_MULT = 0.7;  // speed multiplier during kill chase (lower = faster)

@@ -62,9 +62,7 @@ function drawThoughts(sn, nowMs) {
     if (!sn.thoughts.length || !sn.body.length) return;
     const body = sn.body;
     const prevBody = sn.prevBody || body;
-    const personalitySpeed = PERSONALITY_META[sn.personality]?.speedMult ?? 1.0;
-    const chaseBoost = (sn._behaviorState === 'killing' || sn._behaviorState === 'feared') ? CHASE_SPEED_MULT : 1.0;
-    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs * personalitySpeed * chaseBoost;
+    const effectiveTickMs = getSnakeTickMs(sn);
     const moveProgress = effectiveTickMs > 0
         ? Math.min(1, Math.max(0, (nowMs - (sn.lastMoveMs || nowMs)) / effectiveTickMs))
         : 1;
@@ -278,6 +276,27 @@ function drawConwayLayer(layer, alpha) {
     ctx.globalAlpha = prevAlpha;
 }
 
+function drawConwayWaveChanges(cw, tiles) {
+    const previousAlpha = ctx.globalAlpha;
+    const cols = state.cols, rows = state.rows;
+    for (let y = 0; y < rows; y++) {
+        const rowBase = y * cols;
+        for (let x = 0; x < cols; x++) {
+            const idx = rowBase + x;
+            const from = cw.wallPrev ? cw.wallPrev[idx] : 0;
+            const to = cw.wallTarget[idx];
+            if (from === to) continue;
+            const progress = conwayCellWaveProgress(idx, cw);
+            const visible = to ? progress : 1 - progress;
+            if (visible <= 0.001) continue;
+            ctx.globalAlpha = visible * 0.75;
+            const tile = visible > 0.85 ? tiles.bright : tiles.base;
+            ctx.drawImage(tile, x * CELL_SIZE, y * CELL_SIZE);
+        }
+    }
+    ctx.globalAlpha = previousAlpha;
+}
+
 function buildConwayFadeLayers(cw, tiles, wallHex) {
     const shared = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
     const fadeIn = makeScratchCanvas(canvasLogicalWidth, canvasLogicalHeight);
@@ -331,8 +350,8 @@ function buildConwayFadeLayers(cw, tiles, wallHex) {
     };
 }
 
-// Draw Conway walls using prebuilt layer canvases.
-// This avoids per-cell draw work during each frame of the crossfade.
+// Draw stable walls from cached layers. During renewal, draw only changed
+// cells per frame so the visible transition follows the gameplay wave.
 function drawConwayWalls() {
     const cw = state.conway;
     if (!cw.wallTarget) return;
@@ -358,12 +377,7 @@ function drawConwayWalls() {
     }
 
     const active = wallCache.fade;
-    const ease = conwayCurrentEase(cw);
     const transitioning = cw.fadeProgress < 1.0;
-    const fadeOutAlpha = transitioning ? (1 - ease) * 0.75 : 0;
-    const fadeInAlpha = transitioning ? ease * 0.75 : 0.75;
-    const fadeOutLayer = (1 - ease) > 0.85 ? active.fadeOutBright : active.fadeOut;
-    const fadeInLayer = (!transitioning || ease > 0.85) ? active.fadeInBright : active.fadeIn;
 
     if (isNight) {
         ctx.shadowColor = 'rgba(120,100,200,0.4)';
@@ -371,8 +385,11 @@ function drawConwayWalls() {
     }
 
     drawConwayLayer(active.shared, 0.75);
-    drawConwayLayer(fadeOutLayer, fadeOutAlpha);
-    drawConwayLayer(fadeInLayer, fadeInAlpha);
+    if (transitioning) {
+        drawConwayWaveChanges(cw, tiles);
+    } else {
+        drawConwayLayer(active.fadeInBright, 0.75);
+    }
 
     if (isNight) {
         ctx.shadowBlur = 0;
@@ -415,9 +432,7 @@ function drawSnake(sn, nowMs) {
     }
 
     const prevBody = sn.prevBody || body;
-    const personalitySpeed = PERSONALITY_META[sn.personality]?.speedMult ?? 1.0;
-    const chaseBoost = (sn._behaviorState === 'killing' || sn._behaviorState === 'feared') ? CHASE_SPEED_MULT : 1.0;
-    const effectiveTickMs = sn.wandering ? state.tickMs * WANDER_SPEED_DIVISOR : state.tickMs * personalitySpeed * chaseBoost;
+    const effectiveTickMs = getSnakeTickMs(sn);
     const moveProgress = effectiveTickMs > 0
         ? Math.min(1, Math.max(0, (nowMs - (sn.lastMoveMs || nowMs)) / effectiveTickMs))
         : 1;
@@ -474,6 +489,41 @@ function drawSnake(sn, nowMs) {
     ctx.restore();
 }
 
+function drawGlowSeed(nowMs) {
+    const seed = state.glowSeed && state.glowSeed.cell;
+    if (!seed) return;
+    const { px, py } = toPixel(seed.x, seed.y);
+    const cx = px + CELL_SIZE / 2;
+    const cy = py + CELL_SIZE / 2;
+    const pulse = 1 + 0.12 * Math.sin(nowMs / 170);
+    const outer = CELL_SIZE * 0.42 * pulse;
+    const inner = CELL_SIZE * 0.24 * pulse;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(nowMs / 900);
+    ctx.fillStyle = 'rgba(255, 231, 122, 0.24)';
+    ctx.shadowColor = 'rgba(255, 207, 64, 0.95)';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(0, 0, outer, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffe36e';
+    ctx.beginPath();
+    ctx.moveTo(0, -inner);
+    ctx.lineTo(inner * 0.48, -inner * 0.48);
+    ctx.lineTo(inner, 0);
+    ctx.lineTo(inner * 0.48, inner * 0.48);
+    ctx.lineTo(0, inner);
+    ctx.lineTo(-inner * 0.48, inner * 0.48);
+    ctx.lineTo(-inner, 0);
+    ctx.lineTo(-inner * 0.48, -inner * 0.48);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
 function render(nowMs) {
     const W = canvasLogicalWidth, H = canvasLogicalHeight;
     const { cols, rows, status, theme, colors } = state;
@@ -500,6 +550,8 @@ function render(nowMs) {
 
     // Conway walls (below food and snakes)
     if (state.conway.enabled) drawConwayWalls();
+
+    drawGlowSeed(nowMs);
 
     // Draw all snakes (food + body + head), then all thought bubbles on top.
     for (const sn of state.snakes) {

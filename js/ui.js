@@ -24,14 +24,45 @@ const conwayRegenInput = document.getElementById('conwayRegenInput');
 const regenLabel    = document.getElementById('regenLabel');
 const snakeColorRows = document.getElementById('snakeColorRows');
 const themeSlotBtns = Array.from(document.querySelectorAll('.theme-slot-btn'));
+const themeSlotRow = document.querySelector('.theme-slot-row');
+const saveThemeBtn = document.getElementById('saveThemeBtn');
+const themeSlotStatus = document.getElementById('themeSlotStatus');
 const _themeSlotMem = {};
+let themeSaveMode = false;
 
 // ---- Panel open/close ----
+function openSettingsPanel(focusCloseButton) {
+    settingsPanel.classList.add('open');
+    settingsPanel.removeAttribute('inert');
+    settingsPanel.setAttribute('aria-hidden', 'false');
+    settingsBtn.setAttribute('aria-expanded', 'true');
+    if (focusCloseButton !== false) closeBtn.focus();
+}
+
+function closeOpenPersonalityMenu(restoreFocus) {
+    const menu = document.querySelector('.personality-dropdown');
+    if (!menu) return false;
+    if (typeof menu._closeMenu === 'function') menu._closeMenu(restoreFocus);
+    else menu.remove();
+    return true;
+}
+
+function closeSettingsPanel(restoreFocus) {
+    closeOpenPersonalityMenu(false);
+    if (themeSaveMode) setThemeSaveMode(false);
+    settingsPanel.classList.remove('open');
+    settingsPanel.setAttribute('inert', '');
+    settingsPanel.setAttribute('aria-hidden', 'true');
+    settingsBtn.setAttribute('aria-expanded', 'false');
+    if (restoreFocus !== false) settingsBtn.focus();
+}
+
 settingsBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    settingsPanel.classList.toggle('open');
+    if (settingsPanel.classList.contains('open')) closeSettingsPanel(true);
+    else openSettingsPanel(true);
 });
-closeBtn.addEventListener('click', () => settingsPanel.classList.remove('open'));
+closeBtn.addEventListener('click', () => closeSettingsPanel(true));
 
 // Track whether a click started inside the panel (mousedown fires before DOM mutations).
 // This prevents the panel from closing when clicks remove elements (like the × snake button),
@@ -45,18 +76,49 @@ document.addEventListener('mousedown', (e) => {
 });
 document.addEventListener('click', (e) => {
     if (_clickStartedInPanel) { _clickStartedInPanel = false; return; }
-    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) {
-        settingsPanel.classList.remove('open');
+    if (settingsPanel.classList.contains('open') &&
+        !settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+        closeSettingsPanel(false);
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && settingsPanel.classList.contains('open')) {
+        e.preventDefault();
+        if (closeOpenPersonalityMenu(true)) return;
+        closeSettingsPanel(true);
+        return;
+    }
+    if (e.key !== 'Tab' || !settingsPanel.classList.contains('open')) return;
+    const focusable = Array.from(settingsPanel.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
     }
 });
 
 // ---- Taskbar offset ----
 // Keep the settings controls above the Windows taskbar only when requested.
 function applyTaskbarOffset() {
+    if (document.body.getAttribute('data-android-host') === 'settings') {
+        settingsBtn.style.removeProperty('bottom');
+        settingsPanel.style.removeProperty('bottom');
+        settingsPanel.style.removeProperty('max-height');
+        window.uiInsetBottom = 0;
+        return;
+    }
     const taskbarH = getTaskbarInset();
     window.uiInsetBottom = taskbarH;
     settingsBtn.style.bottom = (20 + taskbarH) + 'px';
     settingsPanel.style.bottom = (64 + taskbarH) + 'px';
+    settingsPanel.style.maxHeight = 'calc(100dvh - ' + (80 + taskbarH) + 'px)';
 }
 
 function applyReserveTaskbarSpace(enabled, restartGame) {
@@ -72,12 +134,19 @@ applyTaskbarOffset();
 window.addEventListener('resize', applyTaskbarOffset);
 
 // ---- Speed ----
+function clampTps(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    const safe = Number.isFinite(parsed) ? parsed : fallback;
+    return Math.max(MIN_TPS, Math.min(MAX_TPS, safe));
+}
+
 speedInput.addEventListener('input', function () {
-    const tps = Math.max(MIN_TPS, Math.min(MAX_TPS, parseInt(this.value) || MIN_TPS));
+    if (this.value.trim() === '') return;
+    const tps = clampTps(this.value, DEFAULT_TPS);
     state.tickMs = tpsToMs(tps);
 });
 speedInput.addEventListener('change', function () {
-    const tps = Math.max(MIN_TPS, Math.min(MAX_TPS, parseInt(this.value) || MIN_TPS));
+    const tps = clampTps(this.value, DEFAULT_TPS);
     this.value = tps;
     state.tickMs = tpsToMs(tps);
 });
@@ -148,26 +217,63 @@ function rebuildSnakeColorRows() {
         nameRow.appendChild(segCount);
         lbl.appendChild(nameRow);
 
-        const personalityTag = document.createElement('span');
+        const personalityControl = document.createElement('span');
+        personalityControl.className = 'personality-control';
+
+        const personalityTag = document.createElement('button');
+        personalityTag.type = 'button';
         personalityTag.className = 'personality-tag';
-        personalityTag.style.cursor = 'pointer';
+        personalityTag.id = 'personalityButton-' + i;
+        personalityTag.setAttribute('aria-haspopup', 'menu');
+        personalityTag.setAttribute('aria-expanded', 'false');
         const pMeta = PERSONALITY_META[sn.personality];
         personalityTag.textContent = pMeta ? pMeta.emoji + ' ' + pMeta.label : '';
-        personalityTag.title = 'Click to change personality';
+        personalityTag.title = 'Change personality';
         personalityTag.addEventListener('click', (e) => {
             e.stopPropagation();
             // Remove any existing personality dropdown first.
             const existing = document.querySelector('.personality-dropdown');
-            if (existing) existing.remove();
+            if (existing) {
+                const owner = document.getElementById(existing.getAttribute('aria-labelledby'));
+                if (typeof existing._closeMenu === 'function') existing._closeMenu(false);
+                else {
+                    if (owner) owner.setAttribute('aria-expanded', 'false');
+                    existing.remove();
+                }
+                if (owner === personalityTag) return;
+            }
 
             const dropdown = document.createElement('div');
             dropdown.className = 'personality-dropdown';
+            dropdown.id = 'personalityMenu-' + i;
+            dropdown.setAttribute('role', 'menu');
+            dropdown.setAttribute('aria-labelledby', personalityTag.id);
+            personalityTag.setAttribute('aria-controls', dropdown.id);
+            personalityTag.setAttribute('aria-expanded', 'true');
+
+            function closeDropdown(restoreFocus) {
+                if (dropdown.isConnected) dropdown.remove();
+                personalityTag.setAttribute('aria-expanded', 'false');
+                personalityTag.removeAttribute('aria-controls');
+                document.removeEventListener('click', closeOnOutsideClick);
+                if (restoreFocus) personalityTag.focus();
+            }
+            dropdown._closeMenu = closeDropdown;
+
+            function closeOnOutsideClick(event) {
+                if (!dropdown.contains(event.target) && event.target !== personalityTag) {
+                    closeDropdown(false);
+                }
+            }
 
             for (const pKey of PERSONALITIES) {
                 const pm = PERSONALITY_META[pKey];
-                const opt = document.createElement('div');
+                const opt = document.createElement('button');
+                opt.type = 'button';
                 opt.className = 'personality-option' + (pKey === sn.personality ? ' selected' : '');
                 opt.textContent = pm.emoji + ' ' + pm.label;
+                opt.setAttribute('role', 'menuitemradio');
+                opt.setAttribute('aria-checked', String(pKey === sn.personality));
                 opt.addEventListener('click', (ev) => {
                     ev.stopPropagation();
                     sn.personality = pKey;
@@ -181,27 +287,28 @@ function rebuildSnakeColorRows() {
                     sn.aggressiveRetaliationUntilMs = 0;
                     sn.aggressiveKillTargetSnakeId = null;
                     sn.aggressiveKillUntilMs = 0;
+                    sn.cautiousEvadeTargetSnakeId = null;
                     clearTaggedThought(sn, 'behavior');
                     personalityTag.textContent = pm.emoji + ' ' + pm.label;
-                    dropdown.remove();
+                    closeDropdown(true);
                 });
                 dropdown.appendChild(opt);
             }
 
-            // Position below the tag.
-            personalityTag.style.position = 'relative';
-            personalityTag.appendChild(dropdown);
+            dropdown.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeDropdown(true);
+                }
+            });
+            personalityControl.appendChild(dropdown);
 
             // Close on outside click.
-            const closeDropdown = (ev) => {
-                if (!dropdown.contains(ev.target) && ev.target !== personalityTag) {
-                    dropdown.remove();
-                    document.removeEventListener('click', closeDropdown);
-                }
-            };
-            setTimeout(() => document.addEventListener('click', closeDropdown), 0);
+            setTimeout(() => document.addEventListener('click', closeOnOutsideClick), 0);
         });
-        lbl.appendChild(personalityTag);
+        personalityControl.appendChild(personalityTag);
+        lbl.appendChild(personalityControl);
 
         // rightGroup holds the color picker + (optional) remove button side by side.
         const rightGroup = document.createElement('div');
@@ -312,6 +419,22 @@ function collectThemeSetup() {
     };
 }
 
+function setThemeSaveMode(active) {
+    themeSaveMode = !!active;
+    saveThemeBtn.setAttribute('aria-pressed', String(themeSaveMode));
+    saveThemeBtn.textContent = themeSaveMode ? 'Cancel theme save' : 'Save current theme';
+    themeSlotRow.classList.toggle('saving', themeSaveMode);
+    themeSlotStatus.textContent = themeSaveMode
+        ? 'Choose slot 1, 2, or 3 to save.'
+        : 'Select a slot to load it.';
+    for (const btn of themeSlotBtns) {
+        const slot = btn.dataset.slot;
+        btn.setAttribute('aria-label', themeSaveMode
+            ? 'Save current theme to slot ' + slot
+            : 'Load theme slot ' + slot);
+    }
+}
+
 function saveThemeSlot(slot) {
     if (!slot) return;
     const key = 'snek.themeSlot.' + slot;
@@ -327,10 +450,13 @@ function saveThemeSlot(slot) {
         btn.classList.add('saved');
         setTimeout(() => btn.classList.remove('saved'), 700);
     }
+    setThemeSaveMode(false);
+    themeSlotStatus.textContent = 'Saved current theme to slot ' + slot + '.';
+    return true;
 }
 
 function loadThemeSlot(slot) {
-    if (!slot) return;
+    if (!slot) return false;
     const key = 'snek.themeSlot.' + slot;
     let raw = null;
     try {
@@ -339,18 +465,31 @@ function loadThemeSlot(slot) {
         raw = null;
     }
     if (!raw && _themeSlotMem[key]) raw = _themeSlotMem[key];
-    if (!raw) return;
+    if (!raw) {
+        themeSlotStatus.textContent = 'Theme slot ' + slot + ' is empty.';
+        return false;
+    }
 
     let setup = null;
     try {
         setup = JSON.parse(raw);
     } catch (_) {
-        return;
+        themeSlotStatus.textContent = 'Theme slot ' + slot + ' cannot be loaded.';
+        return false;
     }
-    if (!setup || !Array.isArray(setup.snakes) || setup.snakes.length < 1) return;
+    if (!setup || !Array.isArray(setup.snakes) || setup.snakes.length < 1) {
+        themeSlotStatus.textContent = 'Theme slot ' + slot + ' cannot be loaded.';
+        return false;
+    }
 
-    state.tickMs = Number(setup.tickMs) || state.tickMs;
-    speedInput.value = Math.max(MIN_TPS, Math.min(MAX_TPS, Math.round(1000 / state.tickMs)));
+    const savedTickMs = Number(setup.tickMs);
+    const currentTps = Math.round(1000 / state.tickMs) || DEFAULT_TPS;
+    const savedTps = Number.isFinite(savedTickMs) && savedTickMs > 0
+        ? Math.round(1000 / savedTickMs)
+        : currentTps;
+    const themeTps = clampTps(savedTps, DEFAULT_TPS);
+    state.tickMs = tpsToMs(themeTps);
+    speedInput.value = themeTps;
 
     state.smoothMovement = setup.smoothMovement !== false;
     smoothToggle.classList.toggle('active', state.smoothMovement);
@@ -384,6 +523,16 @@ function loadThemeSlot(slot) {
     conwayRegenInput.value = Math.round(state.conway.regenMs / 1000);
     regenLabel.textContent = formatRegenLabel(Math.round(state.conway.regenMs / 1000));
 
+    // Build or clear the saved wall layout first. New snakes and food then use
+    // that layout as occupied space and cannot be placed under a wall.
+    state.glowSeed.cell = null;
+    const conwayEnabled = !!(setup.conway && setup.conway.enabled);
+    state.conway.enabled = conwayEnabled;
+    conwayToggle.classList.toggle('active-orange', conwayEnabled);
+    conwayToggle.setAttribute('aria-checked', String(conwayEnabled));
+    conwayControls.classList.toggle('visible', conwayEnabled);
+    if (conwayEnabled) conwayInit(true); else conwayClear();
+
     state.snakes = [];
     state.nextSnakeId = 0;
     for (let i = 0; i < Math.min(MAX_SNAKES, setup.snakes.length); i++) {
@@ -401,13 +550,7 @@ function loadThemeSlot(slot) {
         placeFood(sn);
     }
     if (!state.snakes.length) initGame();
-
-    const conwayEnabled = !!(setup.conway && setup.conway.enabled);
-    state.conway.enabled = conwayEnabled;
-    conwayToggle.classList.toggle('active-orange', conwayEnabled);
-    conwayToggle.setAttribute('aria-checked', String(conwayEnabled));
-    conwayControls.classList.toggle('visible', conwayEnabled);
-    if (conwayEnabled) conwayInit(true); else conwayClear();
+    else resetGlowSeed(performance.now());
 
     const currentBoard = state.theme === 'night' ? state.colors.boardNight : state.colors.board;
     const currentWall = state.theme === 'night' ? state.colors.wallNight : state.colors.wall;
@@ -417,6 +560,8 @@ function loadThemeSlot(slot) {
     wallSwatch.style.background = currentWall;
 
     if (window._uiRebuildSnakeRows) window._uiRebuildSnakeRows();
+    themeSlotStatus.textContent = 'Loaded theme slot ' + slot + '.';
+    return true;
 }
 
 // ---- Board colour ----
@@ -571,11 +716,12 @@ rebuildSnakeColorRows();
 
 // ---- Add Snake button ----
 document.getElementById('addSnakeBtn').addEventListener('click', () => addSnake());
+saveThemeBtn.addEventListener('click', () => setThemeSaveMode(!themeSaveMode));
 themeSlotBtns.forEach((btn) => {
     const slot = Number(btn.dataset.slot);
-    btn.title = 'Click to load, right-click or Alt+Click to save';
+    btn.title = 'Load slot. Alt-click or right-click to save.';
     btn.addEventListener('click', (e) => {
-        if (e.altKey) saveThemeSlot(slot);
+        if (e.altKey || themeSaveMode) saveThemeSlot(slot);
         else loadThemeSlot(slot);
     });
     btn.addEventListener('contextmenu', (e) => {

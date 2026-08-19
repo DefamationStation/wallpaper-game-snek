@@ -81,7 +81,8 @@
 
     if (mode !== 'settings') return;
 
-    settingsPanel.classList.add('open');
+    applyTaskbarOffset();
+    openSettingsPanel(false);
     let saveTimer = null;
     function saveSettingsSoon() {
         clearTimeout(saveTimer);

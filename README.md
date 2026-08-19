@@ -13,7 +13,7 @@ An algo-driven Snake game designed to run as an animated live wallpaper via [Liv
 - **Emoji thought bubbles** — snakes express their mood (eating 😋, full 😌, scared 😰, greeting 👋, death 💥).
 - **Day / Night themes** — toggle a dark palette at any time.
 - **Fully customisable colors** — snake, board background, and wall color are each independently configurable.
-- **Adjustable speed** — 1–60 ticks per second.
+- **Adjustable speed** — 1–20 ticks per second.
 
 ## Usage
 
